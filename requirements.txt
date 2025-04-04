@@ -34,5 +34,4 @@ six==1.17.0
 sqlparse==0.5.3
 threadpoolctl==3.6.0
 tzdata==2025.1
-uritemplate==4.1.1
-xgboost==3.0.0
+djangorestframework-simplejwt==5.2.2
