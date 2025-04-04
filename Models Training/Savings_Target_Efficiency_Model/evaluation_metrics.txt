@@ -1,0 +1,30 @@
+Model Accuracy: 0.9960
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.71      0.91      0.80        35
+           1       1.00      1.00      1.00      3963
+
+    accuracy                           1.00      3998
+   macro avg       0.86      0.96      0.90      3998
+weighted avg       1.00      1.00      1.00      3998
+
+
+Confusion Matrix:
+[[  32    3]
+ [  13 3950]]
+
+Feature Importance:
+                        Feature  Importance
+              Disposable_Income    0.918440
+    Potential_Savings_Groceries    0.040199
+ Total_Expenses_to_Income_Ratio    0.035699
+    Potential_Savings_Transport    0.004653
+   Potential_Savings_Eating_Out    0.001009
+             Essential_Expenses    0.000000
+                         Income    0.000000
+  Calculated_Savings_Efficiency    0.000000
+     Desired_Savings_Percentage    0.000000
+         Non_Essential_Expenses    0.000000
+Potential_Savings_Entertainment    0.000000

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'ExpBudApp', 
     'corsheaders',
     'rest_framework_simplejwt',
+    'drf_yasg',  # SwaggerSchema for API
        # Your app
 ]
 REST_FRAMEWORK = {
