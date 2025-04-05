@@ -37,3 +37,4 @@ tzdata==2025.1
 djangorestframework-simplejwt==5.2.2
 django-cors-headers
 cryptography
+xgboost
