@@ -1,199 +1,62 @@
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-import joblib
-import os
-import pandas as pd
+from .serializers import UnifiedFinancialInputSerializer
+from .utils.feature_engineering import compute_feature_sets
 
-from .serializers import (
-    ExpensePredictionInputSerializer,
-    OverspendingAlertInputSerializer,
-    AnomalyDetectionInputSerializer,
-    FinancialHealthScoreInputSerializer,
-    PersonalizedSpendingInputSerializer
-)
-
-from .anomaly_detection import detect_anomaly
+from .expense_prediction import predict_expense_breakdown
 from .overspending_alert import predict_overspending_alert
-from .savings_efficiency_predictor import predict_savings_efficiency, FEATURE_COLUMNS
+from .anomaly_detection import detect_anomaly
+from .savings_efficiency_predictor import predict_savings_efficiency
 from .financial_score_predictor import predict_financial_health_score
 from .personalized_recommender import generate_spending_recommendation
 
-
-# Load model and scaler for expense prediction
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-model = joblib.load(os.path.join(BASE_DIR, 'models', 'expense_prediction_model.pkl'))
-scaler = joblib.load(os.path.join(BASE_DIR, 'models','feature_scaler.pkl'))
-
-expected_features = [
-    'Income', 'Rent', 'Loan_Repayment', 'Groceries', 'Transport',
-    'Eating_Out', 'Entertainment', 'Utilities', 'Healthcare', 'Education',
-    'Miscellaneous', 'Savings_Efficiency',
-    'Rent_to_Income_Ratio', 'Groceries_to_Income_Ratio',
-    'Total_Expenses_to_Income_Ratio'
-]
-
-
-class ExpensePredictionView(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Expense Prediction",
-        tags=["AI-ML Models"],
-        request_body=ExpensePredictionInputSerializer,
-        responses={200: openapi.Response(
-            description='Predicted Disposable Income',
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Unified AI Predictions",
+    tags=["AI-ML Models"],
+    request_body=UnifiedFinancialInputSerializer,
+    responses={
+        200: openapi.Response(
+            description="Combined predictions from all models",
             schema=openapi.Schema(
                 type=openapi.TYPE_OBJECT,
                 properties={
-                    'predicted_disposable_income': openapi.Schema(type=openapi.TYPE_NUMBER)
+                    "Expense_Prediction": openapi.Schema(type=openapi.TYPE_OBJECT),
+                    "Overspending_Alert": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    "Anomaly_Detection": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    "Savings_Target_Result": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    "Financial_Health_Score": openapi.Schema(type=openapi.TYPE_NUMBER),
+                    "Personalized_Recommendations": openapi.Schema(type=openapi.TYPE_OBJECT),
                 }
             )
-        )}
-    )
-    def post(self, request):
-        serializer = ExpensePredictionInputSerializer(data=request.data)
-        if serializer.is_valid():
-            input_data = serializer.validated_data
-            input_df = pd.DataFrame([input_data])
-            scaled_input = scaler.transform(input_df)
-            prediction = model.predict(scaled_input)
-            return Response({'predicted_disposable_income': prediction[0]}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class OverspendingAlertView(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Overspending Alert",
-        tags=["AI-ML Models"],
-        request_body=OverspendingAlertInputSerializer,
-        responses={200: openapi.Response(
-            description='Overspending Alert',
-            schema=openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    'overspending_alert': openapi.Schema(type=openapi.TYPE_BOOLEAN)
-                }
-            )
-        )}
-    )
-    def post(self, request):
-        serializer = OverspendingAlertInputSerializer(data=request.data)
-        if serializer.is_valid():
-            input_data = serializer.validated_data
-            alert = predict_overspending_alert(input_data)
-            return Response({'overspending_alert': alert}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class AnomalyDetectionView(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Anomaly Detection",
-        tags=["AI-ML Models"],
-        request_body=AnomalyDetectionInputSerializer,
-        responses={200: openapi.Response(
-            description='Anomaly Detection Result',
-            schema=openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    'anomaly': openapi.Schema(type=openapi.TYPE_BOOLEAN)
-                }
-            )
-        )}
-    )
-    def post(self, request):
-        serializer = AnomalyDetectionInputSerializer(data=request.data)
-        if serializer.is_valid():
-            input_data = serializer.validated_data
-            is_anomaly = detect_anomaly(input_data)
-            return Response({'anomaly': is_anomaly}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class SavingsTargetEfficiency(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Savings Target Efficiency",
-        tags=["AI-ML Models"],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={field: openapi.Schema(type=openapi.TYPE_NUMBER) for field in FEATURE_COLUMNS},
-            required=FEATURE_COLUMNS
         ),
-        responses={200: openapi.Response(
-            description='Savings Target Achievement Prediction',
-            schema=openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    'Savings_Target_Achieved': openapi.Schema(type=openapi.TYPE_BOOLEAN)
-                }
-            )
-        )}
-    )
-    def post(self, request):
+        400: openapi.Response(description="Validation error"),
+        500: openapi.Response(description="Prediction failure"),
+    }
+)
+@api_view(['POST'])
+def unified_prediction_view(request):
+    serializer = UnifiedFinancialInputSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user_input = serializer.validated_data
+        model_inputs = compute_feature_sets(user_input)
+
         try:
-            data = request.data
-            missing = [field for field in FEATURE_COLUMNS if field not in data]
-            if missing:
-                return Response({"error": f"Missing fields: {missing}"}, status=400)
+            results = {
+                "Expense_Prediction": predict_expense_breakdown(model_inputs['expense_prediction']),
+                "Overspending_Alert": predict_overspending_alert(model_inputs['overspending_alert']),
+                "Anomaly_Detection": detect_anomaly(model_inputs['anomaly_detection']),
+                "Savings_Target_Result": predict_savings_efficiency(model_inputs['savings_efficiency']),
+                "Financial_Health_Score": predict_financial_health_score(model_inputs['financial_health_score']),
+                "Personalized_Recommendations": generate_spending_recommendation(model_inputs['personalized_spending']),
+            }
+            return Response(results, status=200)
 
-            prediction = predict_savings_efficiency(data)
-            return Response({"Savings_Target_Achieved": prediction}, status=200)
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": f"Prediction failed: {str(e)}"}, status=500)
 
-
-class FinancialHealthScoreView(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Financial Health Score",
-        tags=["AI-ML Models"],
-        request_body=FinancialHealthScoreInputSerializer,
-        responses={200: openapi.Response(
-            description="Predicted Financial Health Score",
-            schema=openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    "financial_health_score": openapi.Schema(type=openapi.TYPE_NUMBER)
-                }
-            )
-        )}
-    )
-    def post(self, request):
-        serializer = FinancialHealthScoreInputSerializer(data=request.data)
-        if serializer.is_valid():
-            score = predict_financial_health_score(serializer.validated_data)
-            return Response({"financial_health_score": score}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class PersonalizedSpendingRecommendationView(APIView):
-
-    @swagger_auto_schema(
-        operation_summary="Personalized Spending Recommendation",
-        tags=["AI-ML Models"],
-        request_body=PersonalizedSpendingInputSerializer,
-        responses={200: openapi.Response(
-            description="Spending Recommendations",
-            schema=openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    "recommendations": openapi.Schema(
-                        type=openapi.TYPE_OBJECT,
-                        additional_properties=openapi.Schema(type=openapi.TYPE_NUMBER)
-                    )
-                }
-            )
-        )}
-    )
-    def post(self, request):
-        serializer = PersonalizedSpendingInputSerializer(data=request.data)
-        if serializer.is_valid():
-            input_data = serializer.validated_data
-            recommendations = generate_spending_recommendation(input_data)
-            return Response({"recommendations": recommendations}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=400)

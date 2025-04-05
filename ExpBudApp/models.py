@@ -1,6 +1,12 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.utils.timezone import now  # Import this to use default datetime
+from django.utils.timezone import now
+from django.conf import settings
+from datetime import timedelta, date
+
+# ------------------------
+# Custom User Model
+# ------------------------
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -14,33 +20,54 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
+
+# ------------------------
+# Transaction Model
+# ------------------------
+
 class Transaction(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    PAYMENT_METHOD_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Credit Card', 'Credit Card'),
+        ('Debit Card', 'Debit Card'),
+        ('UPI', 'UPI'),
+        ('Other', 'Other'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.CharField(max_length=50)
-    transaction_date = models.DateField(default=now)  # Use default=now instead of auto_now_add
-    transaction_time = models.TimeField(default=now)  # FIX: Default value to avoid migration issue
+    transaction_date = models.DateField(default=now)
+    transaction_time = models.TimeField(default=now)
     merchant_name = models.CharField(max_length=100, null=True, blank=True)
     payment_method = models.CharField(
         max_length=50,
-        choices=[
-            ('Cash', 'Cash'),
-            ('Credit Card', 'Credit Card'),
-            ('Debit Card', 'Debit Card'),
-            ('UPI', 'UPI'),
-            ('Other', 'Other')
-        ],
+        choices=PAYMENT_METHOD_CHOICES,
         default='Cash'
     )
     transaction_description = models.TextField(null=True, blank=True)
-    id = models.BigAutoField(primary_key=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category} - ₹{self.amount}"
+# ------------------------
+# Budget Model
+# ------------------------
 
 class Budget(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     category = models.CharField(max_length=50)
     budget_limit = models.DecimalField(max_digits=10, decimal_places=2)
-    created_at = models.DateTimeField(default=now)  # FIX: Default value added
+    created_at = models.DateTimeField(default=now)
     id = models.BigAutoField(primary_key=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category} - ₹{self.budget_limit}"
+
+
+# ------------------------
+# Savings Goal Model
+# ------------------------
 
 class SavingsGoal(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -50,10 +77,18 @@ class SavingsGoal(models.Model):
     deadline = models.DateField()
     id = models.BigAutoField(primary_key=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.goal_name}"
+
+
+# ------------------------
+# AI Prediction Model
+# ------------------------
+
 class AIPrediction(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     predicted_expense = models.DecimalField(max_digits=10, decimal_places=2)
-    prediction_date = models.DateField(default=now)  # FIX: Default value added
+    prediction_date = models.DateField(default=now)
     prediction_type = models.CharField(
         max_length=50,
         choices=[
@@ -66,44 +101,87 @@ class AIPrediction(models.Model):
     confidence_score = models.FloatField(null=True, blank=True)
     id = models.BigAutoField(primary_key=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.prediction_type}"
+
+
+# ------------------------
+# Overspending Alert Model
+# ------------------------
+
 class OverspendingAlert(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     category = models.CharField(max_length=50)
-    alert_type = models.CharField(max_length=50, choices=[
-        ('Overspending', 'Overspending'),
-        ('Unusual Transaction', 'Unusual Transaction')
-    ], default='Overspending')
+    alert_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('Overspending', 'Overspending'),
+            ('Unusual Transaction', 'Unusual Transaction')
+        ],
+        default='Overspending'
+    )
     alert_message = models.TextField()
-    alert_date = models.DateTimeField(default=now)  # FIX: Default value added
+    alert_date = models.DateTimeField(default=now)
 
     def __str__(self):
         return f"{self.user.email} - {self.category} - {self.alert_type}"
 
+
+# ------------------------
+# Financial Report Model
+# ------------------------
+
 class FinancialReport(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    report_type = models.CharField(max_length=50, choices=[
-        ('Monthly Summary', 'Monthly Summary'),
-        ('Yearly Report', 'Yearly Report')
-    ], default='Monthly Summary')
+    report_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('Monthly Summary', 'Monthly Summary'),
+            ('Yearly Report', 'Yearly Report')
+        ],
+        default='Monthly Summary'
+    )
     report_data = models.JSONField()
-    generated_at = models.DateTimeField(default=now)  # FIX: Default value added
+    generated_at = models.DateTimeField(default=now)
 
     def __str__(self):
         return f"{self.user.email} - {self.report_type}"
 
+
+# ------------------------
+# Recurring Transaction Model
+# ------------------------
+
+from django.db import models
+from django.conf import settings
+from django.utils.timezone import now
+
 class RecurringTransaction(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    FREQUENCY_CHOICES = [
+        ('Daily', 'Daily'),
+        ('Weekly', 'Weekly'),
+        ('Monthly', 'Monthly'),
+        ('Yearly', 'Yearly'),
+    ]
+
+    PAYMENT_METHOD_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Credit Card', 'Credit Card'),
+        ('Debit Card', 'Debit Card'),
+        ('UPI', 'UPI'),
+        ('Other', 'Other')
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     category = models.CharField(max_length=50)
-    start_date = models.DateField(default=now)  # FIX: Default value added
-    frequency = models.CharField(
-        max_length=50,
-        choices=[
-            ('Daily', 'Daily'),
-            ('Weekly', 'Weekly'),
-            ('Monthly', 'Monthly'),
-            ('Yearly', 'Yearly')
-        ],
-        default='Monthly'
-    )
-    id = models.BigAutoField(primary_key=True)
+    start_date = models.DateField(default=now)
+    frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
+    next_due_date = models.DateField(default=now)
+
+    merchant_name = models.CharField(max_length=100, null=True, blank=True)
+    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category} ({self.frequency})"
