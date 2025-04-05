@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.timezone import now
 from django.conf import settings
-from datetime import timedelta, date
+from datetime import date
 
 # ------------------------
 # Custom User Model
@@ -41,15 +41,47 @@ class Transaction(models.Model):
     transaction_date = models.DateField(default=now)
     transaction_time = models.TimeField(default=now)
     merchant_name = models.CharField(max_length=100, null=True, blank=True)
-    payment_method = models.CharField(
-        max_length=50,
-        choices=PAYMENT_METHOD_CHOICES,
-        default='Cash'
-    )
+    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
     transaction_description = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.category} - ₹{self.amount}"
+
+
+# ------------------------
+# Recurring Transaction Model
+# ------------------------
+
+class RecurringTransaction(models.Model):
+    FREQUENCY_CHOICES = [
+        ('Daily', 'Daily'),
+        ('Weekly', 'Weekly'),
+        ('Monthly', 'Monthly'),
+        ('Yearly', 'Yearly'),
+    ]
+
+    PAYMENT_METHOD_CHOICES = [
+        ('Cash', 'Cash'),
+        ('Credit Card', 'Credit Card'),
+        ('Debit Card', 'Debit Card'),
+        ('UPI', 'UPI'),
+        ('Other', 'Other'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    category = models.CharField(max_length=50)
+    start_date = models.DateField(default=now)
+    frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
+    next_due_date = models.DateField(default=now)
+    merchant_name = models.CharField(max_length=100, null=True, blank=True)
+    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.category} ({self.frequency})"
+
+
 # ------------------------
 # Budget Model
 # ------------------------
@@ -94,7 +126,7 @@ class AIPrediction(models.Model):
         choices=[
             ('Expense Forecast', 'Expense Forecast'),
             ('Savings Forecast', 'Savings Forecast'),
-            ('Anomaly Detection', 'Anomaly Detection')
+            ('Anomaly Detection', 'Anomaly Detection'),
         ],
         default='Expense Forecast'
     )
@@ -116,7 +148,7 @@ class OverspendingAlert(models.Model):
         max_length=50,
         choices=[
             ('Overspending', 'Overspending'),
-            ('Unusual Transaction', 'Unusual Transaction')
+            ('Unusual Transaction', 'Unusual Transaction'),
         ],
         default='Overspending'
     )
@@ -137,7 +169,7 @@ class FinancialReport(models.Model):
         max_length=50,
         choices=[
             ('Monthly Summary', 'Monthly Summary'),
-            ('Yearly Report', 'Yearly Report')
+            ('Yearly Report', 'Yearly Report'),
         ],
         default='Monthly Summary'
     )
@@ -146,42 +178,3 @@ class FinancialReport(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.report_type}"
-
-
-# ------------------------
-# Recurring Transaction Model
-# ------------------------
-
-from django.db import models
-from django.conf import settings
-from django.utils.timezone import now
-
-class RecurringTransaction(models.Model):
-    FREQUENCY_CHOICES = [
-        ('Daily', 'Daily'),
-        ('Weekly', 'Weekly'),
-        ('Monthly', 'Monthly'),
-        ('Yearly', 'Yearly'),
-    ]
-
-    PAYMENT_METHOD_CHOICES = [
-        ('Cash', 'Cash'),
-        ('Credit Card', 'Credit Card'),
-        ('Debit Card', 'Debit Card'),
-        ('UPI', 'UPI'),
-        ('Other', 'Other')
-    ]
-
-    id = models.BigAutoField(primary_key=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    category = models.CharField(max_length=50)
-    start_date = models.DateField(default=now)
-    frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
-    next_due_date = models.DateField(default=now)
-
-    merchant_name = models.CharField(max_length=100, null=True, blank=True)
-    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
-
-    def __str__(self):
-        return f"{self.user.username} - {self.category} ({self.frequency})"
