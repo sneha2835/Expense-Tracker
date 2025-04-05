@@ -1,3 +1,0 @@
-Model Evaluation Metrics:
-Mean Squared Error (MSE): 2.2371
-R² Score: 0.8548

@@ -1,7 +1,0 @@
-
-Model Evaluation Metrics:
--------------------------
-Mean Absolute Error (MAE): 1.0995
-Mean Squared Error (MSE): 1.8716
-Root Mean Squared Error (RMSE): 1.3681
-R² Score: 0.9725

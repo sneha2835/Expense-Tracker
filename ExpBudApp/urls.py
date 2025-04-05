@@ -6,23 +6,16 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from .views.export_views import export_transactions_to_csv, export_transactions_to_pdf
+from ExpBudApp import views
+from .views import analytics_views
+# Unified AI/ML Prediction Endpoint
+from ExpBudApp.Model_Integration.views import unified_prediction_view
 
-# ML model views
-from ExpBudApp.Model_Integration.views import (
-    ExpensePredictionView,
-    OverspendingAlertView,
-    AnomalyDetectionView,
-    SavingsTargetEfficiency,
-    FinancialHealthScoreView,
-    PersonalizedSpendingRecommendationView,  
-)
+# Analytics View
+from ExpBudApp.views.analytics_views import UserAnalyticsView
 
-# Router for finance
-router = DefaultRouter()
-router.register(r'budget', BudgetViewSet, basename='budget')
-router.register(r'transactions', TransactionViewSet, basename='transactions')
-
-# Swagger schema setup
+# Swagger Schema
 schema_view = get_schema_view(
     openapi.Info(
         title="Expense Budget App API",
@@ -36,26 +29,44 @@ schema_view = get_schema_view(
     permission_classes=[permissions.AllowAny],
 )
 
-# URL patterns
+# Define the query parameters for export views
+export_query_params = [
+    openapi.Parameter('start_date', openapi.IN_QUERY, description="Start date for the transactions filter (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+    openapi.Parameter('end_date', openapi.IN_QUERY, description="End date for the transactions filter (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+    openapi.Parameter('category', openapi.IN_QUERY, description="Category of the transaction (e.g., Groceries, Transport)", type=openapi.TYPE_STRING),
+    openapi.Parameter('transaction_type', openapi.IN_QUERY, description="Type of the transaction (e.g., Income, Expense)", type=openapi.TYPE_STRING),
+    openapi.Parameter('period', openapi.IN_QUERY, description="Period for report generation (weekly, monthly, quarterly, yearly)", type=openapi.TYPE_STRING),
+]
+
+# DRF Router
+router = DefaultRouter()
+router.register(r'budget', BudgetViewSet, basename='budget')
+router.register(r'transactions', TransactionViewSet, basename='transactions')
+
+# Add the Swagger auto schema to the export views directly in export_views
+from drf_yasg.utils import swagger_auto_schema
+
+# URL Patterns
 urlpatterns = [
-    # Auth
+    # 🔐 Auth
     path('auth/register/', RegisterView.as_view(), name="register"),
     path('auth/login/', CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name="token_refresh"),
 
-    # Finance
-    path('finance/', include(router.urls)),
+    # 💰 Finance APIs
+    path('finance/', include(router.urls)),  # Ensure this line is included
 
-    # AI/ML Endpoints
-    # AI/ML Endpoints
-    path('predict-expenses/', ExpensePredictionView.as_view(), name='predict-expenses'),
-    path('predict-overspending/', OverspendingAlertView.as_view(), name='predict-overspending'),
-    path('predict-anomaly/', AnomalyDetectionView.as_view(), name='predict-anomaly'),
-    path('predict-savings-target/', SavingsTargetEfficiency.as_view(), name='predict-savings-target'),
-    path('predict-financial-health/', FinancialHealthScoreView.as_view(), name='predict-financial-health'),
-    path('predict-spending-recommendation/', PersonalizedSpendingRecommendationView.as_view(), name='predict-spending-recommendation'),
+    # 🤖 AI Predictions
+    path('predict-all/', unified_prediction_view, name='predict-all'),
 
-    # Swagger Docs
+    # 📊 Analytics
+    path('analytics/user/', UserAnalyticsView.as_view(), name='user-analytics'),
+
+    # 📄 CSV and PDF Export
+    path('export/csv/', export_transactions_to_csv, name='export-transactions-csv'),
+    path('export/pdf/', export_transactions_to_pdf, name='export-transactions-pdf'),
+
+    # 📄 Swagger Docs
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
