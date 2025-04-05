@@ -3,7 +3,11 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from django.http import HttpResponse
 import csv
+<<<<<<< HEAD
 from weasyprint import HTML
+=======
+#from weasyprint import HTML
+>>>>>>> origin/Srinidhi
 from django.template.loader import render_to_string
 from datetime import datetime, timedelta
 import base64

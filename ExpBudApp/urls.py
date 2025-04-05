@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from ExpBudApp.finance_views import BudgetViewSet, TransactionViewSet
+from ExpBudApp.finance_views import BudgetViewSet, TransactionViewSet, RecurringTransactionViewSet
 from ExpBudApp.views.auth_views import RegisterView, CustomTokenObtainPairView
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework import permissions
@@ -9,12 +9,19 @@ from drf_yasg import openapi
 from .views.export_views import export_transactions_to_csv, export_transactions_to_pdf
 from ExpBudApp import views
 from .views import analytics_views
+<<<<<<< HEAD
 # Unified AI/ML Prediction Endpoint
 from ExpBudApp.Model_Integration.views import unified_prediction_view
 
 # Analytics View
 from ExpBudApp.views.analytics_views import UserAnalyticsView
 
+=======
+from ExpBudApp.Model_Integration.views import unified_prediction_view
+from ExpBudApp.views.analytics_views import UserAnalyticsView
+from drf_yasg.utils import swagger_auto_schema
+
+>>>>>>> origin/Srinidhi
 # Swagger Schema
 schema_view = get_schema_view(
     openapi.Info(
@@ -29,7 +36,11 @@ schema_view = get_schema_view(
     permission_classes=[permissions.AllowAny],
 )
 
+<<<<<<< HEAD
 # Define the query parameters for export views
+=======
+# Export query parameters (for Swagger)
+>>>>>>> origin/Srinidhi
 export_query_params = [
     openapi.Parameter('start_date', openapi.IN_QUERY, description="Start date for the transactions filter (YYYY-MM-DD)", type=openapi.TYPE_STRING),
     openapi.Parameter('end_date', openapi.IN_QUERY, description="End date for the transactions filter (YYYY-MM-DD)", type=openapi.TYPE_STRING),
@@ -42,9 +53,13 @@ export_query_params = [
 router = DefaultRouter()
 router.register(r'budget', BudgetViewSet, basename='budget')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
+<<<<<<< HEAD
 
 # Add the Swagger auto schema to the export views directly in export_views
 from drf_yasg.utils import swagger_auto_schema
+=======
+router.register(r'recurring-transactions', RecurringTransactionViewSet, basename='recurring-transactions')  # 👈 NEW ROUTE
+>>>>>>> origin/Srinidhi
 
 # URL Patterns
 urlpatterns = [
@@ -54,7 +69,11 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name="token_refresh"),
 
     # 💰 Finance APIs
+<<<<<<< HEAD
     path('finance/', include(router.urls)),  # Ensure this line is included
+=======
+    path('finance/', include(router.urls)),
+>>>>>>> origin/Srinidhi
 
     # 🤖 AI Predictions
     path('predict-all/', unified_prediction_view, name='predict-all'),
