@@ -1,135 +1,103 @@
-# expbudapp/views/export_views.py
-import matplotlib.pyplot as plt
-from io import BytesIO
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponse
+from io import BytesIO
 import csv
-<<<<<<< HEAD
-from weasyprint import HTML
-=======
-#from weasyprint import HTML
->>>>>>> origin/Srinidhi
-from django.template.loader import render_to_string
-from datetime import datetime, timedelta
-import base64
+from reportlab.pdfgen import canvas
+from ExpBudApp.models import Transaction
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend
+import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 
-# Helper function to calculate weekly, monthly, quarterly, and yearly date ranges
-def get_date_range(period, start_date=None, end_date=None):
-    # Use current date as the default if no dates are provided
-    if not start_date:
-        start_date = datetime.today()
-    if not end_date:
-        end_date = datetime.today()
 
-    if period == 'weekly':
-        start_date = start_date - timedelta(days=start_date.weekday())  # Start of the week
-        end_date = start_date + timedelta(days=6)  # End of the week
-    elif period == 'monthly':
-        start_date = start_date.replace(day=1)  # Start of the month
-        end_date = (start_date.replace(month=start_date.month+1, day=1) - timedelta(days=1))  # End of the month
-    elif period == 'quarterly':
-        # Calculate the start and end of the quarter
-        quarter = (start_date.month - 1) // 3 * 3 + 1
-        start_date = start_date.replace(month=quarter, day=1)
-        end_date = (start_date.replace(month=quarter+3, day=1) - timedelta(days=1))  # End of the quarter
-    elif period == 'yearly':
-        start_date = start_date.replace(month=1, day=1)  # Start of the year
-        end_date = start_date.replace(year=start_date.year+1) - timedelta(days=1)  # End of the year
 
-    return start_date, end_date
+class ExportTransactionsCSV(APIView):
+    """
+    Export user transactions to CSV format.
+    URL: /export/csv/
+    """
+    permission_classes = [IsAuthenticated]
 
-# CSV Export View (unchanged)
-def export_transactions_to_csv(request):
-    # Get query parameters
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    category = request.GET.get('category')
-    period = request.GET.get('period', 'monthly')  # Default to monthly
+    def get(self, request):
+        transactions = Transaction.objects.filter(user=request.user).order_by('-transaction_date')
 
-    # Get the date range based on the selected period
-    start_date, end_date = get_date_range(period, start_date, end_date)
+        # Create the HTTP response with CSV content
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
 
-    # Fetch transactions from the database (replace with real query)
-    transactions = [
-        {"date": "2025-01-01", "category": "Groceries", "amount": 100},
-        {"date": "2025-02-01", "category": "Groceries", "amount": 150},
-        {"date": "2025-03-01", "category": "Transport", "amount": 80},
-    ]
-    
-    # Filter transactions based on query parameters (if needed)
-    transactions = [t for t in transactions if start_date <= datetime.strptime(t['date'], "%Y-%m-%d") <= end_date]
-    if category:
-        transactions = [t for t in transactions if t['category'] == category]
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Time', 'Amount', 'Category', 'Merchant', 'Payment Method', 'Description'])
 
-    # Prepare CSV response
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
-    writer = csv.DictWriter(response, fieldnames=["date", "category", "amount"])
-    writer.writeheader()
-    writer.writerows(transactions)
-    return response
+        for txn in transactions:
+            writer.writerow([
+                txn.transaction_date,
+                txn.transaction_time,
+                txn.amount,
+                txn.category,
+                txn.merchant_name or '',
+                txn.payment_method,
+                txn.transaction_description or ''
+            ])
 
-# PDF Export View with Weekly, Monthly, Quarterly, Yearly Reports
-def export_transactions_to_pdf(request):
-    # Get query parameters
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    category = request.GET.get('category')
-    period = request.GET.get('period', 'monthly')  # Default to monthly
+        return response
 
-    # Get the date range based on the selected period
-    start_date, end_date = get_date_range(period, start_date, end_date)
 
-    # Fetch transactions from the database (replace with real query)
-    transactions = [
-        {"date": "2025-01-01", "category": "Groceries", "amount": 100},
-        {"date": "2025-02-01", "category": "Groceries", "amount": 150},
-        {"date": "2025-03-01", "category": "Transport", "amount": 80},
-    ]
-    
-    # Filter transactions based on query parameters
-    transactions = [t for t in transactions if start_date <= datetime.strptime(t['date'], "%Y-%m-%d") <= end_date]
-    if category:
-        transactions = [t for t in transactions if t['category'] == category]
+class ExportTransactionsPDF(APIView):
+    permission_classes = [IsAuthenticated]
 
-    # Prepare the chart (e.g., Pie chart of transaction categories)
-    category_data = {}
-    for transaction in transactions:
-        category_data[transaction['category']] = category_data.get(transaction['category'], 0) + transaction['amount']
+    def get(self, request):
+        transactions = Transaction.objects.filter(user=request.user).order_by('-transaction_date')
 
-    # Create a pie chart
-    plt.figure(figsize=(6, 4))
-    plt.pie(category_data.values(), labels=category_data.keys(), autopct='%1.1f%%', startangle=90)
-    plt.title(f'Transaction Categories Breakdown ({period.capitalize()})')
+        # Step 1: Prepare Pie Chart (Category -> Sum of Amounts)
+        category_totals = {}
+        for txn in transactions:
+            category_totals[txn.category] = category_totals.get(txn.category, 0) + float(txn.amount)
 
-    # Save the pie chart to a BytesIO object
-    chart_image = BytesIO()
-    plt.savefig(chart_image, format='png')
-    chart_image.seek(0)  # Rewind the BytesIO object to the beginning
+        # Generate pie chart image
+        pie_buffer = BytesIO()
+        if category_totals:
+            labels = list(category_totals.keys())
+            sizes = list(category_totals.values())
 
-    # Base64 encode the image for embedding in the PDF
-    chart_base64 = base64.b64encode(chart_image.getvalue()).decode('utf-8')
+            plt.figure(figsize=(4, 4))
+            plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
+            plt.title('Expense Distribution by Category')
+            plt.tight_layout()
+            plt.savefig(pie_buffer, format='PNG')
+            plt.close()
+            pie_buffer.seek(0)
 
-    # Render HTML for the PDF
-    html_content = render_to_string('transactions_pdf_template.html', {
-        'transactions': transactions,
-        'period': period.capitalize(),
-        'start_date': start_date.strftime('%Y-%m-%d'),
-        'end_date': end_date.strftime('%Y-%m-%d'),
-    })
+        # Step 2: Build PDF
+        pdf_buffer = BytesIO()
+        p = canvas.Canvas(pdf_buffer, pagesize=letter)
+        width, height = letter
+        p.setFont("Helvetica", 12)
+        p.drawString(200, height - 40, "Transaction History")
 
-    # Render the HTML template with the embedded chart
-    html_content_with_chart = render_to_string('transactions_pdf_template_with_chart.html', {
-        'transactions': transactions,
-        'chart_base64': chart_base64,
-        'period': period.capitalize(),
-        'start_date': start_date.strftime('%Y-%m-%d'),
-        'end_date': end_date.strftime('%Y-%m-%d'),
-    })
+        # Draw pie chart image on PDF
+        if category_totals:
+            image = ImageReader(pie_buffer)
+            p.drawImage(image, 150, height - 300, width=300, height=300)
 
-    # Generate the PDF from the HTML content
-    pdf_with_chart = HTML(string=html_content_with_chart).write_pdf()
+        # Draw transaction table below chart
+        y = height - 320
+        p.setFont("Helvetica", 10)
+        for txn in transactions:
+            line = f"{txn.transaction_date} | ₹{txn.amount} | {txn.category} | {txn.payment_method}"
+            p.drawString(40, y, line)
+            y -= 20
+            if y < 40:
+                p.showPage()
+                y = height - 40
+                p.setFont("Helvetica", 10)
 
-    # Prepare PDF response with embedded chart
-    response = HttpResponse(pdf_with_chart, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="transactions_{period}_{start_date.strftime("%Y%m%d")}_to_{end_date.strftime("%Y%m%d")}.pdf"'
-    return response
+        p.save()
+        pdf_buffer.seek(0)
+
+        # Step 3: Return the file as download
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="transactions_with_chart.pdf"'
+        return response

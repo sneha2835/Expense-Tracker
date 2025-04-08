@@ -33,7 +33,6 @@ python-dotenv==1.0.1
 pytz==2025.2
 PyYAML==6.0.2
 redis==5.2.1
-reportlab==4.3.1
 scikit-learn==1.5.1
 scipy==1.15.2
 seaborn==0.13.2
@@ -44,4 +43,6 @@ threadpoolctl==3.6.0
 tinycss2==1.4.0
 tinyhtml5==2.0.0
 tzdata==2025.1
-djangorestframework-simplejwt==5.2.2
+djangorestframework-simplejwt==5.3.1
+weasyprint==60.0
+cairocffi==1.6.0 
