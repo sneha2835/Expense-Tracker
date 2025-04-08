@@ -3,6 +3,7 @@ from django.db import models
 from django.utils.timezone import now
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from datetime import date
 
 # ----------------------------
 # Custom User & User Manager
@@ -33,7 +34,6 @@ class CustomUserManager(BaseUserManager):
 
         return self.create_user(email, username, password, **extra_fields)
 
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=50, unique=True)
@@ -53,6 +53,22 @@ class User(AbstractBaseUser, PermissionsMixin):
 # Financial Models
 # ----------------------------
 
+class Budget(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+
+    income = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    savings_goal = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    month = models.DateField(help_text="Any date in the month you're budgeting for", default=date.today)
+    budget_limit = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    category = models.CharField(max_length=50, default="General")
+
+    created_at = models.DateTimeField(default=now)
+
+    def __str__(self):
+        return f"{self.user.username} | {self.month.strftime('%B %Y')} | {self.category} | ₹{self.budget_limit}"
+
+
 class Transaction(models.Model):
     PAYMENT_METHOD_CHOICES = [
         ('Cash', 'Cash'),
@@ -64,9 +80,9 @@ class Transaction(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    category = models.CharField(max_length=50)
-    transaction_date = models.DateField(default=now)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    category = models.CharField(max_length=50, default="General")
+    transaction_date = models.DateField(default=date.today)
     transaction_time = models.TimeField(default=now)
     merchant_name = models.CharField(max_length=100, null=True, blank=True)
     payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
@@ -87,11 +103,11 @@ class RecurringTransaction(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    category = models.CharField(max_length=50)
-    start_date = models.DateField(default=now)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    category = models.CharField(max_length=50, default="General")
+    start_date = models.DateField(default=date.today)
     frequency = models.CharField(max_length=50, choices=FREQUENCY_CHOICES, default='Monthly')
-    next_due_date = models.DateField(default=now)
+    next_due_date = models.DateField(default=date.today)
     merchant_name = models.CharField(max_length=100, null=True, blank=True)
     payment_method = models.CharField(max_length=50, choices=PAYMENT_METHOD_CHOICES, default='Cash')
 
@@ -99,33 +115,10 @@ class RecurringTransaction(models.Model):
         return f"{self.user.username} - {self.category} ({self.frequency})"
 
 
-class Budget(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    category = models.CharField(max_length=50)
-    budget_limit = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    created_at = models.DateTimeField(default=now)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.category} - ₹{self.budget_limit}"
-
-
-class SavingsGoal(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    goal_name = models.CharField(max_length=100)
-    target_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    current_savings = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
-    deadline = models.DateField()
-
-    def __str__(self):
-        return f"{self.user.username} - {self.goal_name}"
-
-
 class OverspendingAlert(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    category = models.CharField(max_length=50)
-    limit = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    category = models.CharField(max_length=50, default="General")
+    limit = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
     current_spent = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     alert_triggered = models.BooleanField(default=False)
 
@@ -145,15 +138,6 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.title}"
-
-
-class UserSettings(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='settings')
-    currency = models.CharField(max_length=10, default='USD')
-    theme = models.CharField(max_length=10, default='light')
-
-    def __str__(self):
-        return f"{self.user.username}'s settings"
 
 
 class FinancialReport(models.Model):
@@ -176,8 +160,8 @@ class FinancialReport(models.Model):
 class AIPrediction(models.Model):
     id = models.BigAutoField(primary_key=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    predicted_expense = models.DecimalField(max_digits=10, decimal_places=2)
-    prediction_date = models.DateField(default=now)
+    predicted_expense = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    prediction_date = models.DateField(default=date.today)
     prediction_type = models.CharField(
         max_length=50,
         choices=[
@@ -200,8 +184,6 @@ class AIPrediction(models.Model):
 class UserProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
     full_name = models.CharField(max_length=100)
-    bio = models.TextField(blank=True)
-    profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
 
     def __str__(self):
         return self.full_name
@@ -210,24 +192,27 @@ class UserProfile(models.Model):
 class UserInputProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='input_profile')
 
-    # Core financial fields
-    income = models.DecimalField(max_digits=10, decimal_places=2)
-    rent = models.DecimalField(max_digits=10, decimal_places=2)
-    loan_repayment = models.DecimalField(max_digits=10, decimal_places=2)
-    groceries = models.DecimalField(max_digits=10, decimal_places=2)
-    transport = models.DecimalField(max_digits=10, decimal_places=2)
-    eating_out = models.DecimalField(max_digits=10, decimal_places=2)
-    entertainment = models.DecimalField(max_digits=10, decimal_places=2)
-    utilities = models.DecimalField(max_digits=10, decimal_places=2)
-    healthcare = models.DecimalField(max_digits=10, decimal_places=2)
-    education = models.DecimalField(max_digits=10, decimal_places=2)
-    miscellaneous = models.DecimalField(max_digits=10, decimal_places=2)
+    income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    age = models.IntegerField(default=0)
+    dependents = models.IntegerField(default=0)
+    occupation = models.CharField(max_length=100, default="Not Specified")
+    city_tier = models.IntegerField(default=1)
 
-    # Precomputed fields for ML
-    savings_efficiency = models.FloatField()
-    rent_to_income_ratio = models.FloatField()
-    groceries_to_income_ratio = models.FloatField()
-    total_expenses_to_income_ratio = models.FloatField()
+    rent = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    loan_repayment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    groceries = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    transport = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    eating_out = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    entertainment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    utilities = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    healthcare = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    education = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    miscellaneous = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    savings_efficiency = models.FloatField(default=0)
+    rent_to_income_ratio = models.FloatField(default=0)
+    groceries_to_income_ratio = models.FloatField(default=0)
+    total_expenses_to_income_ratio = models.FloatField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

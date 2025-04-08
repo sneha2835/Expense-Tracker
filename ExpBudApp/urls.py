@@ -24,10 +24,8 @@ from ExpBudApp.finance_views import (
     BudgetViewSet,
     TransactionViewSet,
     RecurringTransactionViewSet,
-    SavingsGoalViewSet,
     NotificationListView,
     NotificationUpdateView,
-    UserSettingsView,
     OverspendingAlertView,
     AIPredictionView,
 )
@@ -77,7 +75,6 @@ router = DefaultRouter()
 router.register(r'budget', BudgetViewSet, basename='budget')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
 router.register(r'recurring-transactions', RecurringTransactionViewSet, basename='recurring-transactions')
-router.register(r'savings-goals', SavingsGoalViewSet, basename='savings-goals')
 
 # Main URL Patterns
 urlpatterns = [
@@ -121,7 +118,6 @@ urlpatterns = [
     path('export/pdf/', ExportTransactionsPDF.as_view(), name='export_pdf'),
 
     # ⚙️ User Settings
-    path('user/settings/', UserSettingsView.as_view(), name='user-settings'),
     path('ai-prediction/', AIPredictionView.as_view(), name='ai-prediction'),
 
     # 🚨 Alerts

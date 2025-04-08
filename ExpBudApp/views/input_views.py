@@ -1,14 +1,16 @@
+# ExpBudApp/views/input_views.py
+
 from rest_framework import generics, permissions
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from ExpBudApp.models import UserInputProfile
-from ExpBudApp.serializers import UserInputDataSerializer
+from ExpBudApp.serializers import UserInputProfileSerializer
 
 
 # ✅ 1. Submit financial input data
 class CreateUserInputDataView(generics.CreateAPIView):
-    serializer_class = UserInputDataSerializer
+    serializer_class = UserInputProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
@@ -19,8 +21,8 @@ class CreateUserInputDataView(generics.CreateAPIView):
             "This data will be used across all prediction models."
         ),
         tags=["3. Input & Expenses"],
-        request_body=UserInputDataSerializer,
-        responses={201: openapi.Response("Input data created", UserInputDataSerializer)}
+        request_body=UserInputProfileSerializer,
+        responses={201: openapi.Response("Input data created", UserInputProfileSerializer)}
     )
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
@@ -31,7 +33,7 @@ class CreateUserInputDataView(generics.CreateAPIView):
 
 # ✅ 2. List all user input records
 class ListUserInputDataView(generics.ListAPIView):
-    serializer_class = UserInputDataSerializer
+    serializer_class = UserInputProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     @swagger_auto_schema(
@@ -42,7 +44,7 @@ class ListUserInputDataView(generics.ListAPIView):
             "ordered by the most recent submission."
         ),
         tags=["3. Input & Expenses"],
-        responses={200: openapi.Response("List of input data", UserInputDataSerializer(many=True))}
+        responses={200: openapi.Response("List of input data", UserInputProfileSerializer(many=True))}
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)

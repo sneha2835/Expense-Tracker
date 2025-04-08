@@ -13,13 +13,13 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from .models import (
-    Budget, Transaction, RecurringTransaction, SavingsGoal,
-    Notification, UserSettings, OverspendingAlert, AIPrediction
+    Budget, Transaction, RecurringTransaction, Notification,
+    OverspendingAlert, AIPrediction, UserInputProfile
 )
 from .serializers import (
     BudgetSerializer, TransactionSerializer, RecurringTransactionSerializer,
-    SavingsGoalSerializer, NotificationSerializer, UserSettingsSerializer,
-    OverspendingAlertSerializer, AIPredictionSerializer
+    NotificationSerializer, OverspendingAlertSerializer,
+    AIPredictionSerializer, UserInputProfileSerializer
 )
 
 # ✅ 3. Budget Planning
@@ -37,14 +37,11 @@ class BudgetViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-
-# ✅ 4. Transaction Management
 class TransactionViewSet(viewsets.ModelViewSet):
-    queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
 
-    @swagger_auto_schema(tags=["5. Transactions"])
+    @swagger_auto_schema(tags=["5. Transactions"], operation_summary="List all user transactions")
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -59,6 +56,7 @@ class TransactionViewSet(viewsets.ModelViewSet):
             merchant_name=data.get("merchant_name"),
             transaction_date=data.get("transaction_date")
         ).first()
+
         if existing_transaction:
             for attr, value in data.items():
                 setattr(existing_transaction, attr, value)
@@ -66,13 +64,11 @@ class TransactionViewSet(viewsets.ModelViewSet):
         else:
             serializer.save(user=user)
 
-
-# ✅ 4. Recurring Transactions
 class RecurringTransactionViewSet(viewsets.ModelViewSet):
     serializer_class = RecurringTransactionSerializer
     permission_classes = [IsAuthenticated]
 
-    @swagger_auto_schema(tags=["6. Recurring Expenses"])
+    @swagger_auto_schema(tags=["6. Recurring Expenses"], operation_summary="List all recurring transactions")
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -81,24 +77,6 @@ class RecurringTransactionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
-
-# ✅ 5. Savings Goals
-class SavingsGoalViewSet(viewsets.ModelViewSet):
-    serializer_class = SavingsGoalSerializer
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(tags=["7. Savings & Goals"])
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    def get_queryset(self):
-        return SavingsGoal.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-
 # ✅ 6. Notifications (List + Update)
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
@@ -123,7 +101,6 @@ class NotificationListView(generics.ListAPIView):
             elif unread.lower() == 'false':
                 queryset = queryset.filter(read=True)
         return queryset
-
 
 class NotificationUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -155,39 +132,14 @@ class NotificationUpdateView(APIView):
             'updated_ids': ids
         })
 
-
-# ✅ 7. User Settings
-class UserSettingsView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(tags=["12. User Settings"])
-    def get(self, request):
-        settings, _ = UserSettings.objects.get_or_create(user=request.user)
-        serializer = UserSettingsSerializer(settings)
-        return Response(serializer.data)
-
-    @swagger_auto_schema(
-        tags=["12. User Settings"],
-        request_body=UserSettingsSerializer
-    )
-    def put(self, request):
-        settings, _ = UserSettings.objects.get_or_create(user=request.user)
-        serializer = UserSettingsSerializer(settings, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Settings updated", "data": serializer.data})
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# ✅ 8. Overspending Alerts
+# ✅ 7. Overspending Alerts
 class OverspendingAlertView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(tags=["9. Alerts & Warnings"])
     def get(self, request):
-        alerts = OverspendingAlert.objects.filter(user=request.user)
-        triggered = alerts.filter(alert_triggered=True)
-        serializer = OverspendingAlertSerializer(triggered, many=True)
+        alerts = OverspendingAlert.objects.filter(user=request.user, alert_triggered=True)
+        serializer = OverspendingAlertSerializer(alerts, many=True)
         return Response({"overspending_alerts": serializer.data})
 
     @swagger_auto_schema(
@@ -237,29 +189,23 @@ class OverspendingAlertView(APIView):
             "data": serializer.data
         })
 
-
-# ✅ 9. Export Transactions (CSV & PDF)
+# ✅ 8. Export Transactions (CSV & PDF)
 class ExportTransactionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         tags=["11. Export Data"],
         manual_parameters=[
-            openapi.Parameter(
-                'format',
-                openapi.IN_QUERY,
-                description="Export format: csv or pdf",
-                type=openapi.TYPE_STRING
-            )
+            openapi.Parameter('format', openapi.IN_QUERY, description="Export format: csv or pdf", type=openapi.TYPE_STRING)
         ]
     )
     def get(self, request):
-        format = request.query_params.get('format', 'csv').lower()
+        export_format = request.query_params.get('format', 'csv').lower()
         transactions = Transaction.objects.filter(user=request.user).order_by('-transaction_date')
 
-        if format == 'csv':
+        if export_format == 'csv':
             return self._export_csv(transactions)
-        elif format == 'pdf':
+        elif export_format == 'pdf':
             return self._export_pdf(transactions)
         else:
             return Response({'error': 'Invalid format. Use ?format=csv or ?format=pdf'}, status=status.HTTP_400_BAD_REQUEST)
@@ -267,7 +213,6 @@ class ExportTransactionsView(APIView):
     def _export_csv(self, transactions):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
-
         writer = csv.writer(response)
         writer.writerow(['Date', 'Time', 'Amount', 'Category', 'Merchant', 'Payment Method', 'Description'])
         for txn in transactions:
@@ -285,8 +230,7 @@ class ExportTransactionsView(APIView):
 
         y = 800
         for txn in transactions:
-            text = f"{txn.transaction_date} | ₹{txn.amount} | {txn.category} | {txn.payment_method}"
-            p.drawString(40, y, text)
+            p.drawString(40, y, f"{txn.transaction_date} | ₹{txn.amount} | {txn.category} | {txn.payment_method}")
             y -= 20
             if y < 40:
                 p.showPage()
@@ -296,8 +240,7 @@ class ExportTransactionsView(APIView):
         buffer.seek(0)
         return HttpResponse(buffer, content_type='application/pdf')
 
-
-# ✅ 10. AI Predictions (Placeholder)
+# ✅ 9. AI Prediction
 class AIPredictionView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -305,9 +248,7 @@ class AIPredictionView(APIView):
         tags=["8. AI Predictions"],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            properties={
-                "prediction_type": openapi.Schema(type=openapi.TYPE_STRING, default="Expense Forecast")
-            }
+            properties={"prediction_type": openapi.Schema(type=openapi.TYPE_STRING, default="Expense Forecast")}
         )
     )
     def post(self, request):
@@ -328,3 +269,17 @@ class AIPredictionView(APIView):
             "message": f"{prediction_type} prediction generated.",
             "data": serializer.data
         })
+
+# ✅ 10. User Input Profile Create or Update
+class UserInputCreateOrUpdateView(generics.CreateAPIView):
+    serializer_class = UserInputProfileSerializer
+    queryset = UserInputProfile.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        instance, _ = UserInputProfile.objects.update_or_create(
+            user=user,
+            defaults=serializer.validated_data
+        )
+        serializer.instance = instance
