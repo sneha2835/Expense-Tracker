@@ -1,17 +1,22 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ Imports
+# ──────────────────────────────────────────────────────────────────────────────
 from rest_framework import viewsets, generics, status
-from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from django.http import HttpResponse
-import csv
-from reportlab.pdfgen import canvas
 from io import BytesIO
+from reportlab.pdfgen import canvas
+import csv
 import random
 from datetime import date
 
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ Project Modules
+# ──────────────────────────────────────────────────────────────────────────────
 from .models import (
     Budget, Transaction, RecurringTransaction, Notification,
     OverspendingAlert, AIPrediction, UserInputProfile
@@ -21,63 +26,85 @@ from .serializers import (
     NotificationSerializer, OverspendingAlertSerializer,
     AIPredictionSerializer, UserInputProfileSerializer
 )
+from .permissions import IsOwnerOrReadOnly, IsAdminOrOwner
 
+# ──────────────────────────────────────────────────────────────────────────────
 # ✅ 3. Budget Planning
+# ──────────────────────────────────────────────────────────────────────────────
 class BudgetViewSet(viewsets.ModelViewSet):
     serializer_class = BudgetSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['put', 'post', 'get', 'delete']
 
     @swagger_auto_schema(tags=["4. Budget Planning"])
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Budget.objects.none()
         return Budget.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ 4. Transactions
+# ──────────────────────────────────────────────────────────────────────────────
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['put', 'post', 'get', 'delete']
 
     @swagger_auto_schema(tags=["5. Transactions"], operation_summary="List all user transactions")
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
-        return Transaction.objects.filter(user=self.request.user)
-
+        user = self.request.user
+        if user.is_authenticated:
+            return Transaction.objects.filter(user=user)
+        return Transaction.objects.none()
+    
     def perform_create(self, serializer):
         user = self.request.user
         data = serializer.validated_data
-        existing_transaction = Transaction.objects.filter(
+        existing = Transaction.objects.filter(
             user=user,
             merchant_name=data.get("merchant_name"),
             transaction_date=data.get("transaction_date")
         ).first()
 
-        if existing_transaction:
+        if existing:
             for attr, value in data.items():
-                setattr(existing_transaction, attr, value)
-            existing_transaction.save()
+                setattr(existing, attr, value)
+            existing.save()
         else:
             serializer.save(user=user)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ 5. Recurring Transactions
+# ──────────────────────────────────────────────────────────────────────────────
 class RecurringTransactionViewSet(viewsets.ModelViewSet):
     serializer_class = RecurringTransactionSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['put', 'post', 'get', 'delete']
 
     @swagger_auto_schema(tags=["6. Recurring Expenses"], operation_summary="List all recurring transactions")
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return RecurringTransaction.objects.none()
         return RecurringTransaction.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+# ──────────────────────────────────────────────────────────────────────────────
 # ✅ 6. Notifications (List + Update)
+# ──────────────────────────────────────────────────────────────────────────────
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -122,7 +149,7 @@ class NotificationUpdateView(APIView):
         mark_as_read = request.data.get('mark_as_read', True)
 
         if not isinstance(ids, list):
-            return Response({'error': 'ids should be a list of notification IDs'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'ids should be a list of integers.'}, status=status.HTTP_400_BAD_REQUEST)
 
         notifications = Notification.objects.filter(id__in=ids, user=request.user)
         updated_count = notifications.update(read=mark_as_read)
@@ -132,7 +159,9 @@ class NotificationUpdateView(APIView):
             'updated_ids': ids
         })
 
+# ──────────────────────────────────────────────────────────────────────────────
 # ✅ 7. Overspending Alerts
+# ──────────────────────────────────────────────────────────────────────────────
 class OverspendingAlertView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -160,17 +189,13 @@ class OverspendingAlertView(APIView):
         current_spent = request.data.get('current_spent')
 
         if not category or limit is None or current_spent is None:
-            return Response({
-                "error": "Please provide 'category', 'limit', and 'current_spent'."
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             limit = float(limit)
             current_spent = float(current_spent)
         except ValueError:
-            return Response({
-                "error": "'limit' and 'current_spent' must be numbers."
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "'limit' and 'current_spent' must be numbers."}, status=status.HTTP_400_BAD_REQUEST)
 
         alert, _ = OverspendingAlert.objects.get_or_create(
             user=request.user, category=category,
@@ -189,7 +214,9 @@ class OverspendingAlertView(APIView):
             "data": serializer.data
         })
 
+# ──────────────────────────────────────────────────────────────────────────────
 # ✅ 8. Export Transactions (CSV & PDF)
+# ──────────────────────────────────────────────────────────────────────────────
 class ExportTransactionsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -240,7 +267,9 @@ class ExportTransactionsView(APIView):
         buffer.seek(0)
         return HttpResponse(buffer, content_type='application/pdf')
 
-# ✅ 9. AI Prediction
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ 9. AI Predictions
+# ──────────────────────────────────────────────────────────────────────────────
 class AIPredictionView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -270,7 +299,9 @@ class AIPredictionView(APIView):
             "data": serializer.data
         })
 
-# ✅ 10. User Input Profile Create or Update
+# ──────────────────────────────────────────────────────────────────────────────
+# ✅ 10. User Input Profile Create/Update
+# ──────────────────────────────────────────────────────────────────────────────
 class UserInputCreateOrUpdateView(generics.CreateAPIView):
     serializer_class = UserInputProfileSerializer
     queryset = UserInputProfile.objects.all()

@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import MethodNotAllowed
 from django.contrib.auth import get_user_model
 
 from ExpBudApp.models import UserProfile
@@ -15,6 +16,7 @@ User = get_user_model()
 # ✅ 1. Main dashboard (feature overview)
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
+    http_method_names = ['put', 'post', 'get', 'delete']
 
     @swagger_auto_schema(
         operation_summary="Get dashboard overview with feature links",
@@ -45,21 +47,6 @@ class DashboardView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
-# ✅ 2. Create user profile
-class CreateUserProfileView(generics.CreateAPIView):
-    queryset = UserProfile.objects.all()
-    serializer_class = UserProfileSerializer
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_summary="Create user profile",
-        tags=["2. User Dashboard"]
-    )
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
 
 # ✅ 3. View user profile
 class UserProfileView(APIView):
@@ -81,6 +68,7 @@ class UserProfileView(APIView):
 class UpdateUserProfileView(generics.UpdateAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['put']
 
     @swagger_auto_schema(
         operation_summary="Update logged-in user's profile",
@@ -90,8 +78,10 @@ class UpdateUserProfileView(generics.UpdateAPIView):
         return super().put(request, *args, **kwargs)
 
     def get_object(self):
-        return UserProfile.objects.get(user=self.request.user)
-
+        profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+        return profile
+    
+    
 # ✅ 5. Delete profile
 class DeleteUserProfileView(generics.DestroyAPIView):
     serializer_class = UserProfileSerializer

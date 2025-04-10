@@ -11,14 +11,14 @@ from rest_framework.authtoken.models import Token
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from ExpBudApp.serializers import UserSerializer, CustomTokenObtainPairSerializer
+from ExpBudApp.serializers import UserSerializer, CustomTokenObtainPairSerializer, RegisterSerializer
 
 User = get_user_model()
 
 # ✅ 1. Register View
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(

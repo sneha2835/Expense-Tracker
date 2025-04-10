@@ -12,6 +12,21 @@ User = get_user_model()
 # Authentication Serializers
 # ------------------------
 
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password']
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
+        return user
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -37,6 +52,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 # ------------------------
 
 class BudgetSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(read_only=True) 
     class Meta:
         model = Budget
         fields = '__all__'
@@ -72,10 +88,12 @@ class AIPredictionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(read_only=True)  # hides from required fields
+
     class Meta:
         model = UserProfile
         fields = '__all__'
-        read_only_fields = ['user']
+        read_only_fields = ['user','created_at']
 
 class UserInputProfileSerializer(serializers.ModelSerializer):
     class Meta:

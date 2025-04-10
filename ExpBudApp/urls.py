@@ -14,7 +14,6 @@ from ExpBudApp.views.auth_views import RegisterView, CustomTokenObtainPairView
 from ExpBudApp.views.dashboard_views import (
     DashboardView,
     UserProfileView,
-    CreateUserProfileView,
     UpdateUserProfileView,
     DeleteUserProfileView,
 )
@@ -85,7 +84,6 @@ urlpatterns = [
 
     # 👤 User Profile
     path('dashboard/profile/', UserProfileView.as_view(), name="user-profile"),
-    path('dashboard/profile/create/', CreateUserProfileView.as_view(), name="create-user-profile"),
     path('dashboard/profile/update/', UpdateUserProfileView.as_view(), name="update-user-profile"),
     path('dashboard/profile/delete/', DeleteUserProfileView.as_view(), name="delete-user-profile"),
 
