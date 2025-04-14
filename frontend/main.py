@@ -209,10 +209,10 @@ def dashboard_view():
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("📊 Expense Prediction"):
+                with st.expander("📊 Expense Prediction", expanded=True):
                     expense_prediction_form()
             with col2:
-                if st.button("🚨 Overspending Alert"):
+                with st.expander("🚨 Overspending Alert",expanded=True):
                     overspending_alert_form()
 
             col3, col4 = st.columns(2)
@@ -635,17 +635,40 @@ def list_transactions():
     else:
         st.error("❌ Failed to fetch transactions.")
 def send_request(endpoint, payload):
-    response = requests.post(f"{BASE_URL}/predict/{endpoint}/", json=payload)
-    if response.status_code == 200:
-        st.success(f"✅ Prediction: {response.json()}")
-    else:
-        st.error(f"❌ Failed: {response.json().get('error', 'Unknown error')}")
+    import requests
+
+    headers = {
+        "Authorization": f"Bearer {st.session_state.get('access_token', '')}",
+        "Content-Type": "application/json"
+    }
+
+    url = f"http://127.0.0.1:8000/api/{endpoint}/"  # Make sure this URL matches your actual backend route
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return response.json()  # ✅ This is what your code needs!
+        else:
+            st.error(f"API Error: {response.status_code}")
+            st.write("🚨 Response Text:", response.text)
+            return None
+    except Exception as e:
+        st.error(f"Request failed: {e}")
+        return None
+
+
 def expense_prediction_form():
     st.subheader("📊 Expense Prediction")
     with st.form("expense_prediction"):
         income = st.number_input("Income", min_value=0)
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
+
         rent = st.number_input("Rent", min_value=0)
         loan_repayment = st.number_input("Loan Repayment", min_value=0)
+        insurance = st.number_input("Insurance", min_value=0)
         groceries = st.number_input("Groceries", min_value=0)
         transport = st.number_input("Transport", min_value=0)
         eating_out = st.number_input("Eating Out", min_value=0)
@@ -654,45 +677,119 @@ def expense_prediction_form():
         healthcare = st.number_input("Healthcare", min_value=0)
         education = st.number_input("Education", min_value=0)
         miscellaneous = st.number_input("Miscellaneous", min_value=0)
-        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
-        rent_to_income_ratio = st.number_input("Rent to Income Ratio", min_value=0.0, max_value=1.0)
-        groceries_to_income_ratio = st.number_input("Groceries to Income Ratio", min_value=0.0, max_value=1.0)
-        total_expenses_to_income_ratio = st.number_input("Total Expenses to Income Ratio", min_value=0.0, max_value=1.0)
-        
-        submit = st.form_submit_button("Predict Expenses")
-    
+
+        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
+
+        submit = st.form_submit_button("Predict Expense Breakdown")
+
     if submit:
+        st.write("✅ Submit triggered, sending request...")  # DEBUG LINE
         payload = {
-            "Income": income, "Rent": rent, "Loan_Repayment": loan_repayment,
-            "Groceries": groceries, "Transport": transport, "Eating_Out": eating_out,
-            "Entertainment": entertainment, "Utilities": utilities, "Healthcare": healthcare,
-            "Education": education, "Miscellaneous": miscellaneous,
-            "Savings_Efficiency": savings_efficiency, "Rent_to_Income_Ratio": rent_to_income_ratio,
-            "Groceries_to_Income_Ratio": groceries_to_income_ratio, "Total_Expenses_to_Income_Ratio": total_expenses_to_income_ratio
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": savings
         }
-        send_request("predict/expense", payload)
+
+        response = send_request("predict/expense", payload)
+
+        if response:
+            st.success("✅ Prediction successful!")
+            prediction = response.get("Expense_Prediction", {})
+            st.write("### 🔍 Prediction Output")
+            st.write("**Disposable Income:**", prediction.get("Disposable_Income"))
+            st.write("**Total Expenses:**", prediction.get("Total_Expenses"))
+            st.write("**Category-wise Breakdown:**")
+            category_expenses = prediction.get("Category_Expenses", {})
+            for category, amount in category_expenses.items():
+                st.markdown(f"- **{category}:** ₹{amount:,.2f}")
+        else:
+            st.error("❌ Failed to get prediction.")
+
 def overspending_alert_form():
     st.subheader("🚨 Overspending Alert")
     with st.form("overspending_alert"):
         income = st.number_input("Income", min_value=0)
-        total_expenses = st.number_input("Total Expenses", min_value=0)
-        rent_to_income_ratio = st.number_input("Rent to Income Ratio", min_value=0.0, max_value=1.0)
-        groceries_to_income_ratio = st.number_input("Groceries to Income Ratio", min_value=0.0, max_value=1.0)
-        total_expenses_to_income_ratio = st.number_input("Total Expenses to Income Ratio", min_value=0.0, max_value=1.0)
-        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
-        essential_expenses = st.number_input("Essential Expenses", min_value=0)
-        non_essential_expenses = st.number_input("Non-Essential Expenses", min_value=0)
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
+
+        rent = st.number_input("Rent", min_value=0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0)
+        insurance = st.number_input("Insurance", min_value=0)
+        groceries = st.number_input("Groceries", min_value=0)
+        transport = st.number_input("Transport", min_value=0)
+        eating_out = st.number_input("Eating Out", min_value=0)
+        entertainment = st.number_input("Entertainment", min_value=0)
+        utilities = st.number_input("Utilities", min_value=0)
+        healthcare = st.number_input("Healthcare", min_value=0)
+        education = st.number_input("Education", min_value=0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0)
+
+        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
 
         submit = st.form_submit_button("Check Overspending Risk")
-    
+
     if submit:
+        st.write("🔄 Submitting for overspending analysis...")
         payload = {
-            "Income": income, "Total_Expenses": total_expenses,
-            "Rent_to_Income_Ratio": rent_to_income_ratio, "Groceries_to_Income_Ratio": groceries_to_income_ratio,
-            "Total_Expenses_to_Income_Ratio": total_expenses_to_income_ratio, "Savings_Efficiency": savings_efficiency,
-            "Essential_Expenses": essential_expenses, "Non_Essential_Expenses": non_essential_expenses
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": savings
         }
-        send_request("predict/overspending", payload)
+
+        response = send_request("predict/overspending", payload)
+
+        if response is not None:
+            st.success("✅ Overspending analysis successful!")
+
+            alert = response.get("Overspending_Alert", None)
+
+            st.write("### 🔍 Overspending Insight")
+            
+            if isinstance(alert, dict):
+                # Show it like a catalog
+                st.markdown(f"""
+                - **Risk Level:** {alert.get('Risk_Level', 'N/A')}
+                - **Message:** {alert.get('Message', 'No message provided')}
+                """)
+            elif alert is False:
+                st.info("🎉 You're spending wisely. No overspending risk detected!")
+            else:
+                st.warning("⚠️ Could not interpret the response.")
+        else:
+            st.error("❌ Failed to get overspending prediction.")
+
+
+
 def anomaly_detection_form():
     st.subheader("🔍 Anomaly Detection")
     with st.form("anomaly_detection"):
