@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import json
-from datetime import date
+from datetime import date,datetime
 
 BASE_URL = "http://127.0.0.1:8000/api"
 
@@ -37,7 +37,11 @@ def login_user():
             st.success("Login successful!")
             st.session_state.user_email = email
         else:
-            st.error(f"Login failed: {response.json()}")
+            try:
+                error_msg = response.json()
+            except ValueError:
+                error_msg = response.text
+            st.error(f"Login failed: {error_msg}")
 
 def register_user():
     """User registration"""
@@ -201,54 +205,74 @@ def dashboard_view():
 
         # Section: AI PREDICTIONS
         elif st.session_state.active_section == "ai":
-            if "active_ai_prediction_action" not in st.session_state:
-                st.session_state.active_ai_prediction_action = None
-
             st.markdown("### 💡 AI Prediction Actions")
+
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("📋 Financial Profile Setup"):
-                    st.session_state.active_ai_prediction_action = "profile_setup"
+                if st.button("📊 Expense Prediction"):
+                    expense_prediction_form()
             with col2:
-                if st.button("🔎 Financial Profile View"):
-                    st.session_state.active_ai_prediction_action = "profile_view"
+                if st.button("🚨 Overspending Alert"):
+                    overspending_alert_form()
 
             col3, col4 = st.columns(2)
             with col3:
-                if st.button("Expense Breakdown"):
-                    call_ai_prediction("expense-breakdown")
+                if st.button("🔍 Anomaly Detection"):
+                    anomaly_detection_form()
             with col4:
-                if st.button("Overspending Alert"):
-                    call_ai_prediction("overspending-alert")
-
+                if st.button("💰 Savings Efficiency"):
+                    savings_efficiency_form()
             col5, col6 = st.columns(2)
             with col5:
-                if st.button("Savings Efficiency"):
-                    call_ai_prediction("savings-target-efficiency")
+                if st.button("📈 Financial Score"):
+                    financial_score_form() 
             with col6:
-                if st.button("Anomaly Detection"):
-                    call_ai_prediction("anomaly-detection")
+                if st.button("💡 Personalized Recommendations"):
+                    personalized_recommendation_form()
+            
+            
 
-            col7, col8 = st.columns(2)
-            with col7:
-                if st.button("Spending Recommendations"):
-                    call_ai_prediction("recommendations")
-            with col8:
-                if st.button("Financial Health Score"):
-                    call_ai_prediction("financial-health-score")
-
-            if st.session_state.active_ai_prediction_action == "profile_setup":
-                financial_input_form()
-            elif st.session_state.active_ai_prediction_action == "profile_view":
-                financial_profile_view()
 
             if st.button("🔙 Back to Dashboard"):
                 st.session_state.active_section = None
-                st.session_state.active_ai_prediction_action = None
 
     else:
         st.error("Failed to load dashboard.")
 
+def create_user_profile():
+    """Create a new user profile"""
+    st.subheader("➕ Create Profile")
+
+    full_name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    profile_picture = st.file_uploader("Upload Profile Picture", type=["jpg", "png"])
+
+    if st.button("Submit Profile"):
+        payload = {"full_name": full_name, "email": email}
+        
+        # Check file and use appropriate request structure
+        if profile_picture:
+            # Multipart with file
+            files = {"profile_picture": (profile_picture.name, profile_picture, profile_picture.type)}
+            response = requests.post(
+                f"{BASE_URL}/dashboard/profile/create/",
+                headers=get_headers(),
+                data=payload,
+                files=files
+            )
+        else:
+            # JSON without file
+            response = requests.post(
+                f"{BASE_URL}/dashboard/profile/create/",
+                headers=get_headers(),
+                json=payload
+            )
+
+        if response.status_code == 201:
+            st.success("✅ Profile created successfully!")
+            st.session_state.active_profile_action = None  # Reset view
+        else:
+            st.error(f"❌ Failed to create profile: {response.text}")
 
 
 ### ✅ User Profile
@@ -355,7 +379,7 @@ def get_headers():
 
 # Individual Budget Functions
 def enter_budget():
-    st.subheader("Enter Budget")
+    st.subheader("📊 Enter Budget")
     income = st.number_input("Income")
     savings_goal = st.number_input("Savings Goal")
     month = st.date_input("Budget Month", value=date.today())
@@ -373,9 +397,25 @@ def enter_budget():
         response = requests.post(f"{BASE_URL}/finance/budget/", headers=get_headers(), json=payload)
 
         if response.status_code == 201:
-            st.success("Budget saved successfully!")
+            budget = response.json()
+            st.session_state.budget_id = budget["id"]  # Save for later use
+
+            st.markdown(
+                f"""
+                    <div style="background-color:#ffffff; color:#000000; padding:20px; border-radius:12px; border:1px solid #dcdcdc; box-shadow: 0 2px 6px rgba(0,0,0,0.05); font-family:Arial, sans-serif;">                    
+                    <h4>✅ Budget Created Successfully!</h4>
+                    <p><strong>📌 Budget ID:</strong> <code>{budget['id']}</code></p>
+                    <p><strong>💰 Income:</strong> ₹{float(budget['income']):,.2f}</p>
+                    <p><strong>🎯 Savings Goal:</strong> ₹{float(budget['savings_goal']):,.2f}</p>
+                    <p><strong>🧾 Budget Limit:</strong> ₹{float(budget['budget_limit']):,.2f}</p>
+                    <p><strong>🏷️ Category:</strong> {budget['category'].capitalize()}</p>
+                    <p><strong>🗓️ Month:</strong> {budget['month']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         else:
-            st.error(f"Error saving budget: {response.text}")
+            st.error(f"🚫 Error saving budget: {response.text}")
 
 def update_budget():
     st.subheader("Update Budget")
@@ -403,44 +443,45 @@ def update_budget():
 
 def view_budget():
     st.subheader("💼 View Budget")
-    
-    # ✅ Step 1: Print token to debug
-    st.write("Access Token:", st.session_state.access_token)
-    
-    # Then make your API call
-    response = requests.get(f"{BASE_URL}/budget/view/", headers=get_headers())
 
+    # Make GET request to the API to fetch the current user's budgets
+    response = requests.get(f"{BASE_URL}/finance/budget/", headers=get_headers())
 
+    # Check if response status is 200 (Success)
     if response.status_code == 200:
-        data = response.json()
+        budgets = response.json()
 
-        # Optional: If API returns a list, get the first item
-        if isinstance(data, list):
-            budget = data[0] if data else None
+        # If there are no budgets, inform the user
+        if not budgets:
+            st.warning("You don't have any budgets yet.")
+
+        # If there are budgets, display them
         else:
-            budget = data
+            for budget in budgets:
+                st.markdown(
+                    f"""
+                    <div style="background-color:#ffffff; color:#000000; padding:20px; 
+                                border-radius:12px; border:1px solid #dcdcdc; 
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.05); font-family:Arial, sans-serif;">
+                        <h4 style="margin-bottom:10px;">📄 Budget Details</h4>
+                        <p><strong>📌 Budget ID:</strong> <code>{budget['id']}</code></p>
+                        <p><strong>💰 Income:</strong> ₹{float(budget['income']):,.2f}</p>
+                        <p><strong>🎯 Savings Goal:</strong> ₹{float(budget['savings_goal']):,.2f}</p>
+                        <p><strong>🧾 Budget Limit:</strong> ₹{float(budget['budget_limit']):,.2f}</p>
+                        <p><strong>🏷️ Category:</strong> {budget['category'].capitalize()}</p>
+                        <p><strong>🗓️ Month:</strong> {budget['month']}</p>
+                        <p><strong>🕒 Created At:</strong> {datetime.strptime(budget['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%b %d, %Y %I:%M %p")}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-        if not budget:
-            st.warning("No budget data available.")
-            return
-
-        st.markdown(
-            f"""
-            <div style="background-color:#f0f2f6; padding:20px; border-radius:12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                <h4 style="margin-bottom:10px;">📅 Month: {budget['month']}</h4>
-                <p><strong>💰 Income:</strong> ₹{float(budget['income']):,.2f}</p>
-                <p><strong>🎯 Savings Goal:</strong> ₹{float(budget['savings_goal']):,.2f}</p>
-                <p><strong>🧾 Budget Limit:</strong> ₹{float(budget['budget_limit']):,.2f}</p>
-                <p><strong>🏷️ Category:</strong> {budget['category'].capitalize()}</p>
-                <p><strong>🕒 Created At:</strong> {datetime.strptime(budget['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%b %d, %Y %I:%M %p")}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+    # Handle errors
+    elif response.status_code == 401:
+        st.error("❌ Unauthorized: Please check your token or login again.")
     else:
-        st.error("❌ Failed to fetch budget data.")
-
+        st.error(f"❌ Something went wrong: {response.status_code} - {response.text}")
+        st.write(f"API Response: {response.json()}")  # Display the response for debugging
 
 def delete_budget():
     st.subheader("Delete Budget")
@@ -476,7 +517,14 @@ def transactions_section():
 def log_transaction():
     st.subheader("Log Transaction")
     amount = st.number_input("Amount", min_value=0.0)
-    category = st.text_input("Category")
+    
+    # Dropdown for categories
+    categories = [
+        "Rent", "Loan_Repayment", "Insurance", "Groceries", "Transport", "Eating_Out", 
+        "Entertainment", "Utilities", "Healthcare", "Education", "Miscellaneous"
+    ]
+    category = st.selectbox("Category", categories)
+    
     transaction_date = st.date_input("Transaction Date")
     transaction_time = st.time_input("Transaction Time")
     merchant_name = st.text_input("Merchant Name")
@@ -485,9 +533,13 @@ def log_transaction():
 
     if st.button("Submit Transaction"):
         payload = {
-            "amount": amount, "category": category, "transaction_date": transaction_date.strftime("%Y-%m-%d"),
-            "transaction_time": transaction_time.strftime("%H:%M"), "merchant_name": merchant_name,
-            "payment_method": payment_method, "transaction_description": transaction_description
+            "amount": amount,
+            "category": category,
+            "transaction_date": transaction_date.strftime("%Y-%m-%d"),
+            "transaction_time": transaction_time.strftime("%H:%M"),
+            "merchant_name": merchant_name,
+            "payment_method": payment_method,
+            "transaction_description": transaction_description
         }
         response = requests.post(f"{BASE_URL}/finance/transactions/", headers=get_headers(), json=payload)
 
@@ -502,7 +554,14 @@ def recurring_transaction():
     st.subheader("Recurring Transactions")
     
     amount = st.number_input("Amount", min_value=0.0)
-    category = st.text_input("Category")
+    
+    # Dropdown for categories
+    categories = [
+        "Rent", "Loan_Repayment", "Insurance", "Groceries", "Transport", "Eating_Out", 
+        "Entertainment", "Utilities", "Healthcare", "Education", "Miscellaneous"
+    ]
+    category = st.selectbox("Category", categories)
+    
     start_date = st.date_input("Start Date")
     frequency = st.selectbox("Frequency", ["Daily", "Weekly", "Monthly", "Yearly"])
     next_due_date = st.date_input("Next Due Date")
@@ -511,9 +570,13 @@ def recurring_transaction():
 
     if st.button("Submit Recurring Transaction"):
         payload = {
-            "amount": amount, "category": category, "start_date": start_date.strftime("%Y-%m-%d"),
-            "frequency": frequency, "next_due_date": next_due_date.strftime("%Y-%m-%d"),
-            "merchant_name": merchant_name, "payment_method": payment_method
+            "amount": amount,
+            "category": category,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "frequency": frequency,
+            "next_due_date": next_due_date.strftime("%Y-%m-%d"),
+            "merchant_name": merchant_name,
+            "payment_method": payment_method
         }
         response = requests.post(f"{BASE_URL}/finance/recurring-transactions/", headers=get_headers(), json=payload)
 
@@ -535,124 +598,159 @@ def list_transactions():
         recurring_transactions = recurring_response.json()
 
         if transactions or recurring_transactions:
+            # Display Regular Transactions
             st.write("### Regular Transactions")
-            st.table([[
-                txn["transaction_date"], f"₹{txn['amount']}", txn["category"], txn["payment_method"]
-            ] for txn in transactions])
+            regular_transactions = [
+                ["Date", "Amount", "Category", "Payment Method"]  # Header row, no row numbers
+            ]
+            for txn in transactions:
+                regular_transactions.append([
+                    txn["transaction_date"], 
+                    f"₹{txn['amount']}", 
+                    txn["category"], 
+                    txn["payment_method"]
+                ])
 
+            st.table(regular_transactions)  # Just pass the list with headers as the first row
+
+            # Display Recurring Transactions
             st.write("### Recurring Transactions")
-            st.table([[
-                r_txn["start_date"], f"₹{r_txn['amount']}", r_txn["category"], r_txn["frequency"], r_txn["next_due_date"]
-            ] for r_txn in recurring_transactions])
+            recurring_transactions_list = [
+                ["Start Date", "Amount", "Category", "Frequency", "Next Due Date"]  # Header row, no row numbers
+            ]
+            for r_txn in recurring_transactions:
+                recurring_transactions_list.append([
+                    r_txn["start_date"], 
+                    f"₹{r_txn['amount']}", 
+                    r_txn["category"], 
+                    r_txn["frequency"], 
+                    r_txn["next_due_date"]
+                ])
+
+            st.table(recurring_transactions_list)  # Just pass the list with headers as the first row
 
         else:
             st.write("No transactions found.")
 
     else:
-        st.error("Failed to fetch transactions.")
-
-###financial_input_form
-def financial_input_form():
-    """Submit Financial Profile and Call AI Predictions"""
-    st.subheader("Submit Financial Profile")
-
-    with st.form("financial_profile"):
-        income = st.number_input("Income")
-        age = st.number_input("Age", min_value=18, max_value=100)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.selectbox("City Tier", [1, 2, 3])
-        rent = st.number_input("Rent")
-        loan_repayment = st.number_input("Loan Repayment")
-        insurance = st.number_input("Insurance")
-        groceries = st.number_input("Groceries")
-        transport = st.number_input("Transport")
-        eating_out = st.number_input("Eating Out")
-        entertainment = st.number_input("Entertainment")
-        utilities = st.number_input("Utilities")
-        healthcare = st.number_input("Healthcare")
-        education = st.number_input("Education")
-        miscellaneous = st.number_input("Miscellaneous")
-        savings_percentage = st.number_input("Desired Savings Percentage")
-
-        submit = st.form_submit_button("Submit Profile")
-
-        if submit:
-            payload = {
-                "income": income, "Age": age, "Dependents": dependents, "Occupation": occupation,
-                "City_Tier": city_tier, "Rent": rent, "Loan_Repayment": loan_repayment, "Insurance": insurance,
-                "Groceries": groceries, "Transport": transport, "Eating_Out": eating_out, "Entertainment": entertainment,
-                "Utilities": utilities, "Healthcare": healthcare, "Education": education, "Miscellaneous": miscellaneous,
-                "Desired_Savings_Percentage": savings_percentage
-            }
-            
-            response = requests.post(f"{BASE_URL}/input-data/create/", headers=get_headers(), json=payload)
-
-            if response.status_code == 201:
-                st.success("Financial profile submitted successfully!")
-                st.session_state.active_ai_prediction_action = "profile_view"  # Auto redirect to view profile
-            else:
-                try:
-                    error_detail = response.json()
-                except ValueError:
-                     if "Duplicate entry" in response.text:
-                        error_detail = "A profile already exists for this user. Please update it instead."
-                     else:
-                        error_detail = response.text or "No response body or invalid JSON returned from server."
-                st.error(f"Failed to submit profile: {error_detail}") 
-### Financial Profile View
-def financial_profile_view():
-    """Fetch financial profile details with UI formatting"""
-    st.subheader("💰 Financial Profile")
-
-    response = requests.get(f"{BASE_URL}/input-data/history/", headers=get_headers())
-
+        st.error("❌ Failed to fetch transactions.")
+def send_request(endpoint, payload):
+    response = requests.post(f"{BASE_URL}/predict/{endpoint}/", json=payload)
     if response.status_code == 200:
-        profile = response.json()
-        if profile:
-            profile = profile[0]
-
-            # Show financial data in a table
-            st.write("### Financial Details")
-            st.table([
-                ["Income", f"₹{profile['income']}"],
-                ["Age", profile["age"]],
-                ["Occupation", profile["occupation"]],
-                ["City Tier", profile["city_tier"]],
-                ["Dependents", profile["dependents"]],
-                ["Rent", f"₹{profile['rent']}"],
-                ["Loan Repayment", f"₹{profile['loan_repayment']}"],
-                ["Desired Savings %", f"{profile.get('desired_savings_percentage', 'N/A')}%"],
-            ])
-        else:
-            st.warning("No financial profile found.")
+        st.success(f"✅ Prediction: {response.json()}")
     else:
-        st.error("Failed to fetch financial profile.")
-
-
-
-### ✅ AI Predictions
-def call_ai_prediction(prediction_type):
-    """Fetch AI expense predictions and display results"""
-    st.subheader(f"AI Prediction: {prediction_type.capitalize()}")
-
-    payload = {"prediction_type": prediction_type}
-    response = requests.post(f"{BASE_URL}/predict/", headers=get_headers(), json=payload)
-
-    if response.status_code == 200:
-        result = response.json()
-        st.success(f"Prediction Completed: {prediction_type.capitalize()}")
-        st.write(f"Predicted Expense: {result['data'].get('predicted_expense', 'N/A')}")
-        st.write(f"Confidence Score: {result['data'].get('confidence_score', 'N/A')}")
-    else:
-        st.error("Failed to generate prediction.")
+        st.error(f"❌ Failed: {response.json().get('error', 'Unknown error')}")
+def expense_prediction_form():
+    st.subheader("📊 Expense Prediction")
+    with st.form("expense_prediction"):
+        income = st.number_input("Income", min_value=0)
+        rent = st.number_input("Rent", min_value=0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0)
+        groceries = st.number_input("Groceries", min_value=0)
+        transport = st.number_input("Transport", min_value=0)
+        eating_out = st.number_input("Eating Out", min_value=0)
+        entertainment = st.number_input("Entertainment", min_value=0)
+        utilities = st.number_input("Utilities", min_value=0)
+        healthcare = st.number_input("Healthcare", min_value=0)
+        education = st.number_input("Education", min_value=0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0)
+        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
+        rent_to_income_ratio = st.number_input("Rent to Income Ratio", min_value=0.0, max_value=1.0)
+        groceries_to_income_ratio = st.number_input("Groceries to Income Ratio", min_value=0.0, max_value=1.0)
+        total_expenses_to_income_ratio = st.number_input("Total Expenses to Income Ratio", min_value=0.0, max_value=1.0)
         
-        # 🔍 Debug info
-        st.code(f"Status Code: {response.status_code}", language="text")
-        try:
-            st.code(response.json(), language="json")
-        except ValueError:
-            st.code(response.text or "No error message returned.", language="text")
+        submit = st.form_submit_button("Predict Expenses")
+    
+    if submit:
+        payload = {
+            "Income": income, "Rent": rent, "Loan_Repayment": loan_repayment,
+            "Groceries": groceries, "Transport": transport, "Eating_Out": eating_out,
+            "Entertainment": entertainment, "Utilities": utilities, "Healthcare": healthcare,
+            "Education": education, "Miscellaneous": miscellaneous,
+            "Savings_Efficiency": savings_efficiency, "Rent_to_Income_Ratio": rent_to_income_ratio,
+            "Groceries_to_Income_Ratio": groceries_to_income_ratio, "Total_Expenses_to_Income_Ratio": total_expenses_to_income_ratio
+        }
+        send_request("predict/expense", payload)
+def overspending_alert_form():
+    st.subheader("🚨 Overspending Alert")
+    with st.form("overspending_alert"):
+        income = st.number_input("Income", min_value=0)
+        total_expenses = st.number_input("Total Expenses", min_value=0)
+        rent_to_income_ratio = st.number_input("Rent to Income Ratio", min_value=0.0, max_value=1.0)
+        groceries_to_income_ratio = st.number_input("Groceries to Income Ratio", min_value=0.0, max_value=1.0)
+        total_expenses_to_income_ratio = st.number_input("Total Expenses to Income Ratio", min_value=0.0, max_value=1.0)
+        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
+        essential_expenses = st.number_input("Essential Expenses", min_value=0)
+        non_essential_expenses = st.number_input("Non-Essential Expenses", min_value=0)
+
+        submit = st.form_submit_button("Check Overspending Risk")
+    
+    if submit:
+        payload = {
+            "Income": income, "Total_Expenses": total_expenses,
+            "Rent_to_Income_Ratio": rent_to_income_ratio, "Groceries_to_Income_Ratio": groceries_to_income_ratio,
+            "Total_Expenses_to_Income_Ratio": total_expenses_to_income_ratio, "Savings_Efficiency": savings_efficiency,
+            "Essential_Expenses": essential_expenses, "Non_Essential_Expenses": non_essential_expenses
+        }
+        send_request("predict/overspending", payload)
+def anomaly_detection_form():
+    st.subheader("🔍 Anomaly Detection")
+    with st.form("anomaly_detection"):
+        income = st.number_input("Income", min_value=0)
+        total_expenses = st.number_input("Total Expenses", min_value=0)
+        discretionary_to_income_ratio = st.number_input("Discretionary to Income Ratio", min_value=0.0, max_value=1.0)
+        savings_target_efficiency = st.number_input("Savings Target Efficiency", min_value=0.0, max_value=1.0)
+
+        submit = st.form_submit_button("Check for Anomalies")
+    
+    if submit:
+        payload = {
+            "Income": income, "Total_Expenses": total_expenses,
+            "Discretionary_to_Income_Ratio": discretionary_to_income_ratio, "Savings_Target_Efficiency": savings_target_efficiency
+        }
+        send_request("predict/anomaly", payload)
+def savings_efficiency_form():
+    st.subheader("💰 Savings Efficiency")
+    with st.form("savings_efficiency"):
+        income = st.number_input("Income", min_value=0)
+        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
+        
+        submit = st.form_submit_button("Check Savings Efficiency")
+    
+    if submit:
+        payload = {
+            "Income": income, "Savings_Efficiency": savings_efficiency
+        }
+        send_request("predict/savings", payload)
+def financial_score_form():
+    st.subheader("📊 Financial Score")
+    with st.form("financial_score"):
+        income = st.number_input("Income", min_value=0)
+        total_expenses = st.number_input("Total Expenses", min_value=0)
+        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
+        
+        submit = st.form_submit_button("Check Financial Score")
+    
+    if submit:
+        payload = {
+            "Income": income, "Total_Expenses": total_expenses, "Savings_Efficiency": savings_efficiency
+        }
+        send_request("predict/score", payload)
+def personalized_recommendation_form():
+    st.subheader("💡 Personalized Financial Recommendations")
+    with st.form("personalized_recommendation"):
+        income = st.number_input("Income", min_value=0)
+        expenses = st.number_input("Total Expenses", min_value=0)
+        
+        submit = st.form_submit_button("Get Recommendations")
+    
+    if submit:
+        payload = {
+            "Income": income, "Expenses": expenses
+        }
+        send_request("predict/recommendation", payload)
+
+
 
 
 
