@@ -217,17 +217,17 @@ def dashboard_view():
 
             col3, col4 = st.columns(2)
             with col3:
-                if st.button("🔍 Anomaly Detection"):
+                with st.expander("🔍 Anomaly Detection",expanded=True):
                     anomaly_detection_form()
             with col4:
-                if st.button("💰 Savings Efficiency"):
+                with st.expander("💰 Savings Efficiency",expanded=True):
                     savings_efficiency_form()
             col5, col6 = st.columns(2)
             with col5:
-                if st.button("📈 Financial Score"):
+                with st.expander("📈 Financial Score",expanded=True):
                     financial_score_form() 
             with col6:
-                if st.button("💡 Personalized Recommendations"):
+                with st.expander("💡 Personalized Recommendations",expanded=True):
                     personalized_recommendation_form()
             
             
@@ -794,58 +794,246 @@ def anomaly_detection_form():
     st.subheader("🔍 Anomaly Detection")
     with st.form("anomaly_detection"):
         income = st.number_input("Income", min_value=0)
-        total_expenses = st.number_input("Total Expenses", min_value=0)
-        discretionary_to_income_ratio = st.number_input("Discretionary to Income Ratio", min_value=0.0, max_value=1.0)
-        savings_target_efficiency = st.number_input("Savings Target Efficiency", min_value=0.0, max_value=1.0)
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
+
+        rent = st.number_input("Rent", min_value=0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0)
+        insurance = st.number_input("Insurance", min_value=0)
+        groceries = st.number_input("Groceries", min_value=0)
+        transport = st.number_input("Transport", min_value=0)
+        eating_out = st.number_input("Eating Out", min_value=0)
+        entertainment = st.number_input("Entertainment", min_value=0)
+        utilities = st.number_input("Utilities", min_value=0)
+        healthcare = st.number_input("Healthcare", min_value=0)
+        education = st.number_input("Education", min_value=0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0)
+
+        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
 
         submit = st.form_submit_button("Check for Anomalies")
-    
+
     if submit:
+        st.write("🔄 Submitting for anomaly detection...")
         payload = {
-            "Income": income, "Total_Expenses": total_expenses,
-            "Discretionary_to_Income_Ratio": discretionary_to_income_ratio, "Savings_Target_Efficiency": savings_target_efficiency
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": savings
         }
-        send_request("predict/anomaly", payload)
+
+        response = send_request("predict/anomaly", payload)
+
+        if response is not None:
+            st.success("✅ Anomaly detection completed!")
+
+            result = response.get("Anomaly_Detection", None)
+
+            st.write("### 📊 Anomaly Detection Result")
+            
+            if result is True:
+                st.warning("⚠️ Anomaly detected in your financial pattern!")
+            elif result is False:
+                st.info("✅ Everything looks normal. No anomalies detected.")
+            else:
+                st.error("❌ Could not interpret the response.")
+        else:
+            st.error("❌ Failed to get anomaly detection result.")
 def savings_efficiency_form():
     st.subheader("💰 Savings Efficiency")
+
     with st.form("savings_efficiency"):
         income = st.number_input("Income", min_value=0)
-        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
-        
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.selectbox("City Tier", [1, 2, 3])
+        rent = st.number_input("Rent", min_value=0.0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0.0)
+        insurance = st.number_input("Insurance", min_value=0.0)
+        groceries = st.number_input("Groceries", min_value=0.0)
+        transport = st.number_input("Transport", min_value=0.0)
+        eating_out = st.number_input("Eating Out", min_value=0.0)
+        entertainment = st.number_input("Entertainment", min_value=0.0)
+        utilities = st.number_input("Utilities", min_value=0.0)
+        healthcare = st.number_input("Healthcare", min_value=0.0)
+        education = st.number_input("Education", min_value=0.0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0.0)
+        desired_savings_percentage = st.number_input("Desired Savings Percentage", min_value=0.0, max_value=100.0)
+
         submit = st.form_submit_button("Check Savings Efficiency")
-    
+
     if submit:
+        st.write("🔄 Submitting for savings efficiency analysis...")
         payload = {
-            "Income": income, "Savings_Efficiency": savings_efficiency
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": desired_savings_percentage
         }
-        send_request("predict/savings", payload)
+
+        response = send_request("predict/savings", payload)
+
+        if response is not None:
+            st.success("✅ Savings Efficiency Analysis Successful!")
+            st.write("### 📋 Savings Insight")
+
+            if isinstance(response, dict):
+                for key, value in response.items():
+                    st.markdown(f"- **{key.replace('_', ' ')}**: {value}")
+            else:
+                st.warning("⚠️ Unexpected response format.")
+        else:
+            st.error("❌ Failed to fetch savings efficiency.")
+
 def financial_score_form():
     st.subheader("📊 Financial Score")
+
     with st.form("financial_score"):
         income = st.number_input("Income", min_value=0)
-        total_expenses = st.number_input("Total Expenses", min_value=0)
-        savings_efficiency = st.number_input("Savings Efficiency", min_value=0.0, max_value=1.0)
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.selectbox("City Tier", [1, 2, 3])
+        rent = st.number_input("Rent", min_value=0.0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0.0)
+        insurance = st.number_input("Insurance", min_value=0.0)
+        groceries = st.number_input("Groceries", min_value=0.0)
+        transport = st.number_input("Transport", min_value=0.0)
+        eating_out = st.number_input("Eating Out", min_value=0.0)
+        entertainment = st.number_input("Entertainment", min_value=0.0)
+        utilities = st.number_input("Utilities", min_value=0.0)
+        healthcare = st.number_input("Healthcare", min_value=0.0)
+        education = st.number_input("Education", min_value=0.0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0.0)
+        desired_savings_percentage = st.number_input("Desired Savings Percentage", min_value=0.0, max_value=100.0)
         
         submit = st.form_submit_button("Check Financial Score")
-    
+
     if submit:
+        st.write("🔄 Submitting for financial score analysis...")
         payload = {
-            "Income": income, "Total_Expenses": total_expenses, "Savings_Efficiency": savings_efficiency
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": desired_savings_percentage
         }
-        send_request("predict/score", payload)
+
+        response = send_request("predict/score", payload)
+
+        if response is not None:
+            st.success("✅ Financial score retrieved successfully!")
+            st.write("### 🧮 Your Financial Health Report")
+
+            if isinstance(response, dict):
+                for key, value in response.items():
+                    st.markdown(f"- **{key.replace('_', ' ')}**: {value}")
+            else:
+                st.warning("⚠️ Unexpected response format.")
+        else:
+            st.error("❌ Failed to fetch financial score.")
+
 def personalized_recommendation_form():
     st.subheader("💡 Personalized Financial Recommendations")
+    
     with st.form("personalized_recommendation"):
         income = st.number_input("Income", min_value=0)
-        expenses = st.number_input("Total Expenses", min_value=0)
-        
+        age = st.number_input("Age", min_value=0)
+        dependents = st.number_input("Dependents", min_value=0)
+        occupation = st.text_input("Occupation")
+        city_tier = st.selectbox("City Tier", [1, 2, 3])
+        rent = st.number_input("Rent", min_value=0.0)
+        loan_repayment = st.number_input("Loan Repayment", min_value=0.0)
+        insurance = st.number_input("Insurance", min_value=0.0)
+        groceries = st.number_input("Groceries", min_value=0.0)
+        transport = st.number_input("Transport", min_value=0.0)
+        eating_out = st.number_input("Eating Out", min_value=0.0)
+        entertainment = st.number_input("Entertainment", min_value=0.0)
+        utilities = st.number_input("Utilities", min_value=0.0)
+        healthcare = st.number_input("Healthcare", min_value=0.0)
+        education = st.number_input("Education", min_value=0.0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0.0)
+        desired_savings_percentage = st.number_input("Desired Savings Percentage", min_value=0.0, max_value=100.0)
+
         submit = st.form_submit_button("Get Recommendations")
-    
+
     if submit:
+        st.write("🔄 Submitting for personalized recommendations...")
         payload = {
-            "Income": income, "Expenses": expenses
+            "Income": income,
+            "Age": age,
+            "Dependents": dependents,
+            "Occupation": occupation,
+            "City_Tier": city_tier,
+            "Rent": rent,
+            "Loan_Repayment": loan_repayment,
+            "Insurance": insurance,
+            "Groceries": groceries,
+            "Transport": transport,
+            "Eating_Out": eating_out,
+            "Entertainment": entertainment,
+            "Utilities": utilities,
+            "Healthcare": healthcare,
+            "Education": education,
+            "Miscellaneous": miscellaneous,
+            "Desired_Savings_Percentage": desired_savings_percentage
         }
-        send_request("predict/recommendation", payload)
+
+        response = send_request("predict/recommendation", payload)
+
+        if response is not None:
+            st.success("✅ Recommendations fetched successfully!")
+            st.write("### 🧾 Your Personalized Recommendations")
+
+            if isinstance(response, dict):
+                for key, value in response.items():
+                    st.markdown(f"- **{key.replace('_', ' ')}**: {value}")
+            else:
+                st.info("ℹ️ No specific recommendations returned.")
+        else:
+            st.error("❌ Failed to get recommendations.")
+
 
 
 
