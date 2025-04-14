@@ -76,21 +76,30 @@ def dashboard_view():
         data = response.json()
         st.write(f"👋  **{data['message']}**")
 
-        # Content for Dashboard
-        # Your dashboard sections as per your original code
+        # Initialize main control state
+        if "active_section" not in st.session_state:
+            st.session_state.active_section = None
 
-        # ==== Profile Section ====
-        if "show_profile_actions" not in st.session_state:
-            st.session_state.show_profile_actions = False
-        if "active_profile_action" not in st.session_state:
-            st.session_state.active_profile_action = None
+        # Section: MAIN MENU
+        if st.session_state.active_section is None:
+            st.markdown("### 🔽 Select a Feature to Continue")
+            if st.button("👤 Your Profile"):
+                st.session_state.active_section = "profile"
+            if st.button("💸 Budget Setup"):
+                st.session_state.active_section = "budget"
+            if st.button("💳 Transactions"):
+                st.session_state.active_section = "transactions"
+            if st.button("🤖 AI Predictions"):
+                st.session_state.active_section = "ai"
+            if st.button("Logout"):
+                logout()
 
-        if st.button("👤 Your Profile"):
-            st.session_state.show_profile_actions = not st.session_state.show_profile_actions
-            st.session_state.active_profile_action = None
+        # Section: PROFILE
+        elif st.session_state.active_section == "profile":
+            if "active_profile_action" not in st.session_state:
+                st.session_state.active_profile_action = None
 
-        if st.session_state.show_profile_actions:
-            st.markdown("##### 🔧 Profile Actions")
+            st.markdown("### 🔧 Profile Actions")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("👁️ View Profile"):
@@ -107,18 +116,25 @@ def dashboard_view():
                 if st.button("🗑️ Delete Profile"):
                     st.session_state.active_profile_action = "delete"
 
-        # ==== Budget Section ====
-        if "show_budget_actions" not in st.session_state:
-            st.session_state.show_budget_actions = False
-        if "active_budget_action" not in st.session_state:
-            st.session_state.active_budget_action = None
+            if st.session_state.active_profile_action == "create":
+                create_user_profile()
+            elif st.session_state.active_profile_action == "view":
+                view_user_profile()
+            elif st.session_state.active_profile_action == "update":
+                update_user_profile()
+            elif st.session_state.active_profile_action == "delete":
+                delete_user_profile()
 
-        if st.button("💸 Budget Setup"):
-            st.session_state.show_budget_actions = not st.session_state.show_budget_actions
-            st.session_state.active_budget_action = None
+            if st.button("🔙 Back to Dashboard"):
+                st.session_state.active_section = None
+                st.session_state.active_profile_action = None
 
-        if st.session_state.show_budget_actions:
-            st.markdown("##### 🧾 Budget Actions")
+        # Section: BUDGET
+        elif st.session_state.active_section == "budget":
+            if "active_budget_action" not in st.session_state:
+                st.session_state.active_budget_action = None
+
+            st.markdown("### 🧾 Budget Actions")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("➕ Enter Budget"):
@@ -135,18 +151,25 @@ def dashboard_view():
                 if st.button("🗑️ Delete Budget"):
                     st.session_state.active_budget_action = "delete"
 
-        # ==== Transactions Section ====
-        if "show_transaction_actions" not in st.session_state:
-            st.session_state.show_transaction_actions = False
-        if "active_transaction_action" not in st.session_state:
-            st.session_state.active_transaction_action = None
+            if st.session_state.active_budget_action == "enter":
+                enter_budget()
+            elif st.session_state.active_budget_action == "update":
+                update_budget()
+            elif st.session_state.active_budget_action == "view":
+                view_budget()
+            elif st.session_state.active_budget_action == "delete":
+                delete_budget()
 
-        if st.button("💳 Transactions"):
-            st.session_state.show_transaction_actions = not st.session_state.show_transaction_actions
-            st.session_state.active_transaction_action = None
+            if st.button("🔙 Back to Dashboard"):
+                st.session_state.active_section = None
+                st.session_state.active_budget_action = None
 
-        if st.session_state.show_transaction_actions:
-            st.markdown("##### 🔧 Transaction Actions")
+        # Section: TRANSACTIONS
+        elif st.session_state.active_section == "transactions":
+            if "active_transaction_action" not in st.session_state:
+                st.session_state.active_transaction_action = None
+
+            st.markdown("### 🔧 Transaction Actions")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("🔄 Log Transaction"):
@@ -163,18 +186,25 @@ def dashboard_view():
                 if st.button("📥 Download Reports"):
                     st.session_state.active_transaction_action = "download"
 
-        # ==== AI Prediction Section ====
-        if "show_ai_predictions" not in st.session_state:
-            st.session_state.show_ai_predictions = False
-        if "active_ai_prediction_action" not in st.session_state:
-            st.session_state.active_ai_prediction_action = None
+            if st.session_state.active_transaction_action == "log":
+                log_transaction()
+            elif st.session_state.active_transaction_action == "recurring":
+                recurring_transaction()
+            elif st.session_state.active_transaction_action == "list":
+                list_transactions()
+            elif st.session_state.active_transaction_action == "download":
+                download_reports()
 
-        if st.button("🤖 AI Predictions"):
-            st.session_state.show_ai_predictions = not st.session_state.show_ai_predictions
-            st.session_state.active_ai_prediction_action = None
+            if st.button("🔙 Back to Dashboard"):
+                st.session_state.active_section = None
+                st.session_state.active_transaction_action = None
 
-        if st.session_state.show_ai_predictions:
-            st.markdown("##### 💡 AI Prediction Actions")
+        # Section: AI PREDICTIONS
+        elif st.session_state.active_section == "ai":
+            if "active_ai_prediction_action" not in st.session_state:
+                st.session_state.active_ai_prediction_action = None
+
+            st.markdown("### 💡 AI Prediction Actions")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("📋 Financial Profile Setup"):
@@ -207,80 +237,18 @@ def dashboard_view():
                 if st.button("Financial Health Score"):
                     call_ai_prediction("financial-health-score")
 
-        # ==== Call Active Profile View ====
-        if st.session_state.active_profile_action == "create":
-            create_user_profile()
-        elif st.session_state.active_profile_action == "view":
-            view_user_profile()
-        elif st.session_state.active_profile_action == "update":
-            update_user_profile()
-        elif st.session_state.active_profile_action == "delete":
-            delete_user_profile()
+            if st.session_state.active_ai_prediction_action == "profile_setup":
+                financial_input_form()
+            elif st.session_state.active_ai_prediction_action == "profile_view":
+                financial_profile_view()
 
-        # ==== Call Active Budget View ====
-        if st.session_state.active_budget_action == "enter":
-            enter_budget()
-        elif st.session_state.active_budget_action == "update":
-            update_budget()
-        elif st.session_state.active_budget_action == "view":
-            view_budget()
-        elif st.session_state.active_budget_action == "delete":
-            delete_budget()
+            if st.button("🔙 Back to Dashboard"):
+                st.session_state.active_section = None
+                st.session_state.active_ai_prediction_action = None
 
-        # ==== Call Active Transaction View ====
-        if st.session_state.active_transaction_action == "log":
-            log_transaction()
-        elif st.session_state.active_transaction_action == "recurring":
-            recurring_transaction()
-        elif st.session_state.active_transaction_action == "list":
-            list_transactions()
-        elif st.session_state.active_transaction_action == "download":
-            download_reports()
-
-        # ==== Call Active AI Prediction View ====
-        if st.session_state.active_ai_prediction_action == "profile_setup":
-            financial_input_form()
-        elif st.session_state.active_ai_prediction_action == "profile_view":
-            financial_profile_view()
-        if st.button("Logout"):
-            logout()
     else:
         st.error("Failed to load dashboard.")
 
-def create_user_profile():
-    """Create a new user profile"""
-    st.subheader("➕ Create Profile")
-
-    full_name = st.text_input("Full Name")
-    email = st.text_input("Email")
-    profile_picture = st.file_uploader("Upload Profile Picture", type=["jpg", "png"])
-
-    if st.button("Submit Profile"):
-        payload = {"full_name": full_name, "email": email}
-        
-        # Check file and use appropriate request structure
-        if profile_picture:
-            # Multipart with file
-            files = {"profile_picture": (profile_picture.name, profile_picture, profile_picture.type)}
-            response = requests.post(
-                f"{BASE_URL}/dashboard/profile/create/",
-                headers=get_headers(),
-                data=payload,
-                files=files
-            )
-        else:
-            # JSON without file
-            response = requests.post(
-                f"{BASE_URL}/dashboard/profile/create/",
-                headers=get_headers(),
-                json=payload
-            )
-
-        if response.status_code == 201:
-            st.success("✅ Profile created successfully!")
-            st.session_state.active_profile_action = None  # Reset view
-        else:
-            st.error(f"❌ Failed to create profile: {response.text}")
 
 
 ### ✅ User Profile
@@ -734,9 +702,7 @@ st.title("💸 Finalyze")
 # Sidebar navigation
 if not st.session_state.access_token:
     menu = [
-        "Login / Register", "Dashboard", "User Profile", "Budget Setup", "Create Profile", "Update Profile", 
-        "Transactions", "Recurring Transactions", "list_transactions", "Financial Profile Setup", 
-        'financial_profile_view', "AI Prediction", "Notifications", "Download Reports", "Logout"
+        "Login / Register", "Dashboard"
     ]
     choice = st.sidebar.selectbox("Menu", menu)
 
