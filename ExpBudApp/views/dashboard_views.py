@@ -64,6 +64,25 @@ class UserProfileView(APIView):
         except UserProfile.DoesNotExist:
             return Response({"error": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
+class CreateUserProfileView(APIView):
+    """Allows a logged-in user to create a profile."""
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Create a new user profile",
+        request_body=UserProfileSerializer,
+        tags=["2. User Dashboard"]
+    )
+    def post(self, request):
+        serializer = UserProfileSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 # ✅ 4. Update profile
 class UpdateUserProfileView(generics.UpdateAPIView):
     serializer_class = UserProfileSerializer
