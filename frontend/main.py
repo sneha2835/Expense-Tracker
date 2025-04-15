@@ -4,6 +4,7 @@ import json
 from datetime import date, datetime
 import uuid
 import time
+import pandas as pd
 
 # Initialize session state for form keys
 if 'form_keys' not in st.session_state:
@@ -197,28 +198,11 @@ def create_user_profile():
     with st.form(key=st.session_state.create_profile_key):
         full_name = st.text_input("Full Name", key=f"name_{st.session_state.create_profile_key}")
         email = st.text_input("Email", key=f"email_{st.session_state.create_profile_key}")
-        profile_picture = st.file_uploader("Upload Profile Picture", 
-                                         type=["jpg", "png"],
-                                         key=f"upload_{st.session_state.create_profile_key}")
+        
 
         if st.form_submit_button("Submit Profile"):
             payload = {"full_name": full_name, "email": email}
             
-            if profile_picture:
-                files = {"profile_picture": (profile_picture.name, profile_picture, profile_picture.type)}
-                response = requests.post(
-                    f"{BASE_URL}/dashboard/profile/create/",
-                    headers=get_headers(),
-                    data=payload,
-                    files=files
-                )
-            else:
-                response = requests.post(
-                    f"{BASE_URL}/dashboard/profile/create/",
-                    headers=get_headers(),
-                    json=payload
-                )
-
             if response.status_code == 201:
                 st.success("✅ Profile created successfully!")
                 del st.session_state.create_profile_key
@@ -384,30 +368,73 @@ def update_budget():
         if response.status_code == 200:
             current_data = response.json()
             
+            # Convert string values to float for number_input
+            try:
+                current_income = float(current_data.get("income", 0))
+                current_savings = float(current_data.get("savings_goal", 0))
+                current_limit = float(current_data.get("budget_limit", 0))
+            except (ValueError, TypeError):
+                st.error("Invalid number format in budget data")
+                return
+            
             with st.form("update_budget_form"):
-                income = st.number_input("New Income", value=current_data.get("income", 0))
-                savings_goal = st.number_input("New Savings Goal", value=current_data.get("savings_goal", 0))
-                budget_limit = st.number_input("New Budget Limit", value=current_data.get("budget_limit", 0))
-                category = st.text_input("New Category", value=current_data.get("category", ""))
-                month = st.date_input("New Budget Month", 
-                                    value=datetime.strptime(current_data.get("month", str(date.today())), "%Y-%m-%d").date())
+                income = st.number_input(
+                    "New Income", 
+                    value=current_income,
+                    min_value=0.0,
+                    step=1000.0,
+                    format="%.2f"
+                )
+                savings_goal = st.number_input(
+                    "New Savings Goal", 
+                    value=current_savings,
+                    min_value=0.0,
+                    step=1000.0,
+                    format="%.2f"
+                )
+                budget_limit = st.number_input(
+                    "New Budget Limit", 
+                    value=current_limit,
+                    min_value=0.0,
+                    step=1000.0,
+                    format="%.2f"
+                )
+                category = st.text_input(
+                    "New Category", 
+                    value=current_data.get("category", "")
+                )
+                month = st.date_input(
+                    "New Budget Month", 
+                    value=datetime.strptime(
+                        current_data.get("month", str(date.today())), 
+                        "%Y-%m-%d"
+                    ).date()
+                )
 
                 if st.form_submit_button("Update Budget"):
                     payload = {
-                        "income": income,
-                        "savings_goal": savings_goal,
+                        "income": str(income),  # Convert back to string for API
+                        "savings_goal": str(savings_goal),
                         "month": month.strftime("%Y-%m-%d"),
-                        "budget_limit": budget_limit,
+                        "budget_limit": str(budget_limit),
                         "category": category,
                     }
-                    response = requests.put(f"{BASE_URL}/finance/budget/{budget_id}/", headers=get_headers(), json=payload)
+                    response = requests.put(
+                        f"{BASE_URL}/finance/budget/{budget_id}/", 
+                        headers=get_headers(), 
+                        json=payload
+                    )
                     if response.status_code in [200, 202]:
                         st.success("✅ Budget updated successfully!")
                         st.session_state.active_subsection = None
+                        st.rerun()
                     else:
                         st.error(f"Error updating budget: {response.text}")
+                        st.json(response.json())  # Show detailed error
         else:
-            st.error("Budget not found")
+            st.error(f"Budget not found (Status: {response.status_code})")
+            if response.status_code != 404:
+                st.json(response.json())  # Show error details if available
 
 def view_budget():
     """View existing budgets"""
@@ -441,19 +468,68 @@ def view_budget():
         st.error(f"❌ Something went wrong: {response.status_code} - {response.text}")
 
 def delete_budget():
-    """Delete a budget"""
+    """Delete a budget with confirmation and debug information"""
     st.subheader("🗑️ Delete Budget")
+    
+    # Get budget ID from user
     budget_id = st.text_input("Enter Budget ID to delete")
     
     if budget_id:
-        st.warning("This action cannot be undone!")
-        if st.button("Delete Budget"):
-            response = requests.delete(f"{BASE_URL}/finance/budget/{budget_id}/", headers=get_headers())
-            if response.status_code == 204:
-                st.success("✅ Budget deleted successfully!")
-                st.session_state.active_subsection = None
+        try:
+            # First verify the budget exists
+            headers = get_headers()
+            verify_url = f"{BASE_URL}/finance/budget/{budget_id}/"
+            
+            with st.spinner("Checking budget..."):
+                verify_response = requests.get(verify_url, headers=headers)
+            
+            if verify_response.status_code == 200:
+                budget = verify_response.json()
+                
+                # Show budget details for confirmation
+                st.warning(f"""
+                **You're about to delete:**
+                - Month: {budget['month']}
+                - Category: {budget['category']}
+                - Income: ₹{float(budget['income']):,.2f}
+                """)
+                
+                # Double confirmation
+                if st.checkbox("I understand this cannot be undone", key=f"confirm_del_{budget_id}"):
+                    if st.button("Permanently Delete Budget", type="primary"):
+                        with st.spinner("Deleting..."):
+                            del_response = requests.delete(verify_url, headers=headers)
+                        
+                        if del_response.status_code == 204:
+                            st.success("✅ Budget deleted successfully!")
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error(f"""
+                            ❌ Deletion failed (Status {del_response.status_code})
+                            Response: {del_response.text}
+                            """)
+                            st.json(del_response.json())  # Show full error response
+                
+            elif verify_response.status_code == 404:
+                st.error("❌ Budget not found. Please check the ID.")
             else:
-                st.error(f"Error deleting budget: {response.text}")
+                st.error(f"Verification failed (Status {verify_response.status_code})")
+                st.json(verify_response.json())  # Show error details
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"""
+            ❌ Network error occurred:
+            {str(e)}
+            """)
+            st.write("Please check your connection and try again")
+
+        except Exception as e:
+            st.error(f"""
+            ❌ Unexpected error:
+            {str(e)}
+            """)
+            st.write("Please check the console for details")
 
 ### ✅ Transaction Functions
 def log_transaction():
@@ -527,7 +603,7 @@ def recurring_transaction():
                 st.error(f"Failed to save recurring transaction: {response.json()}")
 
 def list_transactions():
-    """List all transactions"""
+    """List all transactions with proper columns and action buttons"""
     st.subheader("📜 Transaction History")
     response = requests.get(f"{BASE_URL}/finance/transactions/", headers=get_headers())
     recurring_response = requests.get(f"{BASE_URL}/finance/recurring-transactions/", headers=get_headers())
@@ -540,33 +616,210 @@ def list_transactions():
             # Regular Transactions
             st.write("### Regular Transactions")
             if transactions:
-                regular_data = [[
-                    txn["transaction_date"], 
-                    f"₹{txn['amount']}", 
-                    txn["category"], 
-                    txn["payment_method"]
-                ] for txn in transactions]
-                st.table(regular_data)
-            else:
-                st.info("No regular transactions found.")
-
+                # Create a DataFrame with proper column names
+                regular_df = pd.DataFrame([{
+                    "ID": txn["id"],
+                    "Date": txn["transaction_date"],
+                    "Time": txn.get("transaction_time", ""),
+                    "Amount (₹)": float(txn["amount"]),
+                    "Category": txn["category"],
+                    "Payment Method": txn["payment_method"],
+                    "Merchant": txn.get("merchant_name", ""),
+                    "Description": txn.get("transaction_description", "")
+                } for txn in transactions])
+                
+                # Format the DataFrame display
+                formatted_df = regular_df.copy()
+                formatted_df["Amount (₹)"] = formatted_df["Amount (₹)"].apply(lambda x: f"₹{x:,.2f}")
+                
+                # Display the formatted table
+                st.dataframe(
+                    formatted_df,
+                    column_config={
+                        "ID": st.column_config.NumberColumn("ID"),
+                        "Date": st.column_config.DateColumn("Date"),
+                        "Time": st.column_config.TimeColumn("Time"),
+                        "Amount (₹)": st.column_config.NumberColumn("Amount"),
+                        "Category": "Category",
+                        "Payment Method": "Payment Method",
+                        "Merchant": "Merchant",
+                        "Description": "Description"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+                              
             # Recurring Transactions
             st.write("### Recurring Transactions")
             if recurring_transactions:
-                recurring_data = [[
-                    r_txn["start_date"], 
-                    f"₹{r_txn['amount']}", 
-                    r_txn["category"], 
-                    r_txn["frequency"], 
-                    r_txn["next_due_date"]
-                ] for r_txn in recurring_transactions]
-                st.table(recurring_data)
+                recurring_df = pd.DataFrame([{
+                    "ID": r_txn["id"],
+                    "Start Date": r_txn["start_date"],
+                    "Amount (₹)": float(r_txn["amount"]),
+                    "Category": r_txn["category"],
+                    "Frequency": r_txn["frequency"],
+                    "Next Due": r_txn["next_due_date"],
+                    "Description": r_txn.get("description", "")
+                } for r_txn in recurring_transactions])
+                
+                st.dataframe(
+                    recurring_df,
+                    column_config={
+                        "ID": st.column_config.NumberColumn("ID"),
+                        "Start Date": st.column_config.DateColumn("Start Date"),
+                        "Amount (₹)": st.column_config.NumberColumn("Amount"),
+                        "Category": "Category",
+                        "Frequency": "Frequency",
+                        "Next Due": st.column_config.DateColumn("Next Due"),
+                        "Description": "Description"
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
             else:
                 st.info("No recurring transactions found.")
         else:
             st.info("No transactions found.")
     else:
         st.error("❌ Failed to fetch transactions.")
+
+def update_transaction():
+    """Update an existing transaction"""
+    st.subheader("🔄 Update Transaction")
+    transaction_id = st.text_input("Enter Transaction ID to update")
+    
+    if transaction_id:
+        # Get current transaction data
+        response = requests.get(
+            f"{BASE_URL}/finance/transactions/{transaction_id}/", 
+            headers=get_headers()
+        )
+        
+        if response.status_code == 200:
+            current_data = response.json()
+            
+            with st.form("update_transaction_form"):
+                amount = st.number_input(
+                    "Amount", 
+                    value=float(current_data.get("amount", 0)),
+                    min_value=0.0,
+                    step=0.01,
+                    format="%.2f"
+                )
+                
+                categories = [
+                    "Rent", "Loan_Repayment", "Insurance", "Groceries", "Transport", 
+                    "Eating_Out", "Entertainment", "Utilities", "Healthcare", 
+                    "Education", "Miscellaneous"
+                ]
+                category = st.selectbox(
+                    "Category", 
+                    categories,
+                    index=categories.index(current_data.get("category", "Miscellaneous"))
+                )
+                
+                transaction_date = st.date_input(
+                    "Transaction Date",
+                    value=datetime.strptime(
+                        current_data.get("transaction_date", str(date.today())), 
+                        "%Y-%m-%d"
+                    ).date()
+                )
+                
+                transaction_time = st.time_input(
+                    "Transaction Time",
+                    value=datetime.strptime(
+                        current_data.get("transaction_time", "12:00:00"), 
+                        "%H:%M:%S"
+                    ).time()
+                )
+                
+                merchant_name = st.text_input(
+                    "Merchant Name", 
+                    value=current_data.get("merchant_name", "")
+                )
+                
+                payment_method = st.selectbox(
+                    "Payment Method", 
+                    ["Cash", "UPI", "Card", "Net Banking"],
+                    index=["Cash", "UPI", "Card", "Net Banking"].index(
+                        current_data.get("payment_method", "Cash"))
+                )
+                
+                transaction_description = st.text_input(
+                    "Description", 
+                    value=current_data.get("transaction_description", "")
+                )
+
+                if st.form_submit_button("Update Transaction"):
+                    payload = {
+                        "amount": str(amount),
+                        "category": category,
+                        "transaction_date": transaction_date.strftime("%Y-%m-%d"),
+                        "transaction_time": transaction_time.strftime("%H:%M"),
+                        "merchant_name": merchant_name,
+                        "payment_method": payment_method,
+                        "transaction_description": transaction_description
+                    }
+                    
+                    response = requests.put(
+                        f"{BASE_URL}/finance/transactions/{transaction_id}/", 
+                        headers=get_headers(), 
+                        json=payload
+                    )
+                    
+                    if response.status_code == 200:
+                        st.success("✅ Transaction updated successfully!")
+                        st.rerun()
+                    else:
+                        st.error(f"Error updating transaction: {response.text}")
+
+        elif response.status_code == 404:
+            st.error("Transaction not found")
+        else:
+            st.error(f"Error fetching transaction: {response.status_code}")
+
+def delete_transaction():
+    """Delete a transaction"""
+    st.subheader("🗑️ Delete Transaction")
+    transaction_id = st.text_input("Enter Transaction ID to delete")
+    
+    if transaction_id:
+        # First show transaction details
+        response = requests.get(
+            f"{BASE_URL}/finance/transactions/{transaction_id}/", 
+            headers=get_headers()
+        )
+        
+        if response.status_code == 200:
+            transaction = response.json()
+            
+            st.warning(f"""
+            **You're about to delete:**
+            - Amount: ₹{float(transaction['amount']):,.2f}
+            - Category: {transaction['category']}
+            - Date: {transaction['transaction_date']} at {transaction['transaction_time']}
+            - Merchant: {transaction.get('merchant_name', 'N/A')}
+            """)
+            
+            if st.checkbox("I confirm I want to delete this transaction"):
+                if st.button("Permanently Delete", type="primary"):
+                    response = requests.delete(
+                        f"{BASE_URL}/finance/transactions/{transaction_id}/", 
+                        headers=get_headers()
+                    )
+                    
+                    if response.status_code == 204:
+                        st.success("✅ Transaction deleted successfully!")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error(f"Error deleting transaction: {response.text}")
+        
+        elif response.status_code == 404:
+            st.error("Transaction not found")
+        else:
+            st.error(f"Error fetching transaction: {response.status_code}")
 
 def download_reports():
     """Download transaction reports"""
@@ -624,45 +877,53 @@ def send_request(endpoint, payload):
 def expense_prediction():
     """Expense prediction form"""
     st.subheader("📊 Expense Prediction")
+    
     with st.form("expense_prediction_form"):
-        income = st.number_input("Income", min_value=0)
-        age = st.number_input("Age", min_value=0)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
-
-        rent = st.number_input("Rent", min_value=0)
-        loan_repayment = st.number_input("Loan Repayment", min_value=0)
-        insurance = st.number_input("Insurance", min_value=0)
-        groceries = st.number_input("Groceries", min_value=0)
-        transport = st.number_input("Transport", min_value=0)
-        eating_out = st.number_input("Eating Out", min_value=0)
-        entertainment = st.number_input("Entertainment", min_value=0)
-        utilities = st.number_input("Utilities", min_value=0)
-        healthcare = st.number_input("Healthcare", min_value=0)
-        education = st.number_input("Education", min_value=0)
-        miscellaneous = st.number_input("Miscellaneous", min_value=0)
-
-        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
-
+        # Basic Information
+        st.markdown("### Basic Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+        with col2:
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
+        
+        # Essential Expenses
+        st.markdown("### Essential Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
+        with col2:
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
+        
+        # Lifestyle Expenses
+        st.markdown("### Lifestyle Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
+        with col2:
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
+        
+        # Other Expenses
+        st.markdown("### Other Expenses (₹)")
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
+        
         if st.form_submit_button("Predict Expense Breakdown"):
             payload = {
-                "Income": income,
-                "Age": age,
-                "Dependents": dependents,
-                "Occupation": occupation,
-                "City_Tier": city_tier,
-                "Rent": rent,
-                "Loan_Repayment": loan_repayment,
-                "Insurance": insurance,
-                "Groceries": groceries,
-                "Transport": transport,
-                "Eating_Out": eating_out,
-                "Entertainment": entertainment,
-                "Utilities": utilities,
-                "Healthcare": healthcare,
-                "Education": education,
-                "Miscellaneous": miscellaneous,
+                "Income": income, "Age": age, "Dependents": dependents, "Occupation": occupation,
+                "City_Tier": city_tier, "Rent": rent, "Loan_Repayment": loan_repayment,
+                "Insurance": insurance, "Groceries": groceries, "Transport": transport,
+                "Eating_Out": eating_out, "Entertainment": entertainment, "Utilities": utilities,
+                "Healthcare": healthcare, "Education": education, "Miscellaneous": miscellaneous,
                 "Desired_Savings_Percentage": savings
             }
 
@@ -671,40 +932,61 @@ def expense_prediction():
             if response:
                 st.success("✅ Prediction successful!")
                 prediction = response.get("Expense_Prediction", {})
-                st.write("### 🔍 Prediction Output")
-                st.write("**Disposable Income:**", prediction.get("Disposable_Income"))
-                st.write("**Total Expenses:**", prediction.get("Total_Expenses"))
-                st.write("**Category-wise Breakdown:**")
-                category_expenses = prediction.get("Category_Expenses", {})
-                for category, amount in category_expenses.items():
-                    st.markdown(f"- **{category}:** ₹{amount:,.2f}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Disposable Income", f"₹{prediction.get('Disposable_Income', 0):,.2f}")
+                    st.metric("Total Expenses", f"₹{prediction.get('Total_Expenses', 0):,.2f}")
+                with col2:
+                    st.write("### Category Breakdown")
+                    for category, amount in prediction.get("Category_Expenses", {}).items():
+                        st.markdown(f"- **{category}:** ₹{amount:,.2f}")
             else:
                 st.error("❌ Failed to get prediction.")
 
 def overspending_alert():
     """Overspending alert form"""
     st.subheader("🚨 Overspending Alert")
+    
     with st.form("overspending_alert_form"):
-        income = st.number_input("Income", min_value=0)
-        age = st.number_input("Age", min_value=0)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
-
-        rent = st.number_input("Rent", min_value=0)
-        loan_repayment = st.number_input("Loan Repayment", min_value=0)
-        insurance = st.number_input("Insurance", min_value=0)
-        groceries = st.number_input("Groceries", min_value=0)
-        transport = st.number_input("Transport", min_value=0)
-        eating_out = st.number_input("Eating Out", min_value=0)
-        entertainment = st.number_input("Entertainment", min_value=0)
-        utilities = st.number_input("Utilities", min_value=0)
-        healthcare = st.number_input("Healthcare", min_value=0)
-        education = st.number_input("Education", min_value=0)
-        miscellaneous = st.number_input("Miscellaneous", min_value=0)
-
-        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
-
+        # Basic Information
+        st.markdown("### Basic Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+        with col2:
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
+        
+        # Essential Expenses
+        st.markdown("### Essential Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
+        with col2:
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
+        
+        # Lifestyle Expenses
+        st.markdown("### Lifestyle Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
+        with col2:
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
+        
+        # Other Expenses
+        st.markdown("### Other Expenses (₹)")
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
+        
         if st.form_submit_button("Check Overspending Risk"):
             payload = {
                 "Income": income,
@@ -728,47 +1010,66 @@ def overspending_alert():
 
             response = send_request("overspending", payload)
 
-            if response is not None:
-                st.success("✅ Overspending analysis successful!")
+            if response:
+                st.success("✅ Analysis completed!")
                 alert = response.get("Overspending_Alert", None)
-                st.write("### 🔍 Overspending Insight")
                 
-                if isinstance(alert, dict):
-                    st.markdown(f"""
-                    - **Risk Level:** {alert.get('Risk_Level', 'N/A')}
-                    - **Message:** {alert.get('Message', 'No message provided')}
+                if alert is True:
+                    st.error("⚠️ Overspending Detected!")
+                    st.markdown("""
+                    ### Recommendations:
+                    - Review your discretionary spending (eating out, entertainment)
+                    - Consider reducing expenses in high-spend categories
+                    - Set up spending alerts for better monitoring
                     """)
-                elif alert is False:
-                    st.info("🎉 You're spending wisely. No overspending risk detected!")
                 else:
-                    st.warning("⚠️ Could not interpret the response.")
+                    st.success("🎉 Your spending is within healthy limits!")
             else:
-                st.error("❌ Failed to get overspending prediction.")
+                st.error("❌ Failed to analyze spending.")
 
 def anomaly_detection():
     """Anomaly detection form"""
     st.subheader("🔍 Anomaly Detection")
+    
     with st.form("anomaly_detection_form"):
-        income = st.number_input("Income", min_value=0)
-        age = st.number_input("Age", min_value=0)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.number_input("City Tier", min_value=1, max_value=3)
-
-        rent = st.number_input("Rent", min_value=0)
-        loan_repayment = st.number_input("Loan Repayment", min_value=0)
-        insurance = st.number_input("Insurance", min_value=0)
-        groceries = st.number_input("Groceries", min_value=0)
-        transport = st.number_input("Transport", min_value=0)
-        eating_out = st.number_input("Eating Out", min_value=0)
-        entertainment = st.number_input("Entertainment", min_value=0)
-        utilities = st.number_input("Utilities", min_value=0)
-        healthcare = st.number_input("Healthcare", min_value=0)
-        education = st.number_input("Education", min_value=0)
-        miscellaneous = st.number_input("Miscellaneous", min_value=0)
-
-        savings = st.number_input("Desired Savings Percentage", min_value=0, max_value=100)
-
+        # Basic Information
+        st.markdown("### Basic Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+        with col2:
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
+        
+        # Essential Expenses
+        st.markdown("### Essential Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
+        with col2:
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
+        
+        # Lifestyle Expenses
+        st.markdown("### Lifestyle Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
+        with col2:
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
+        
+        # Other Expenses
+        st.markdown("### Other Expenses (₹)")
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
+        
         if st.form_submit_button("Check for Anomalies"):
             payload = {
                 "Income": income,
@@ -792,43 +1093,68 @@ def anomaly_detection():
 
             response = send_request("anomaly", payload)
 
-            if response is not None:
-                st.success("✅ Anomaly detection completed!")
-                result = response.get("Anomaly_Detection", None)
-                st.write("### 📊 Anomaly Detection Result")
+            if response:
+                st.success("✅ Analysis completed!")
+                anomaly = response.get("Anomaly_Detection", False)
                 
-                if result is True:
-                    st.warning("⚠️ Anomaly detected in your financial pattern!")
-                elif result is False:
-                    st.info("✅ Everything looks normal. No anomalies detected.")
+                if anomaly:
+                    st.error("⚠️ Anomaly Detected in your spending patterns!")
+                    st.markdown("""
+                    ### Suggested Actions:
+                    - Review recent large transactions
+                    - Verify recurring payments
+                    - Check for unauthorized transactions
+                    - Set up transaction alerts
+                    """)
                 else:
-                    st.error("❌ Could not interpret the response.")
+                    st.success("✅ No anomalies detected in your spending patterns")
             else:
-                st.error("❌ Failed to get anomaly detection result.")
+                st.error("❌ Failed to detect anomalies.")
 
 def financial_score():
     """Financial score form"""
     st.subheader("📊 Financial Score")
+    
     with st.form("financial_score_form"):
-        income = st.number_input("Income", min_value=0)
-        age = st.number_input("Age", min_value=0)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.selectbox("City Tier", [1, 2, 3])
-        rent = st.number_input("Rent", min_value=0.0)
-        loan_repayment = st.number_input("Loan Repayment", min_value=0.0)
-        insurance = st.number_input("Insurance", min_value=0.0)
-        groceries = st.number_input("Groceries", min_value=0.0)
-        transport = st.number_input("Transport", min_value=0.0)
-        eating_out = st.number_input("Eating Out", min_value=0.0)
-        entertainment = st.number_input("Entertainment", min_value=0.0)
-        utilities = st.number_input("Utilities", min_value=0.0)
-        healthcare = st.number_input("Healthcare", min_value=0.0)
-        education = st.number_input("Education", min_value=0.0)
-        miscellaneous = st.number_input("Miscellaneous", min_value=0.0)
-        desired_savings_percentage = st.number_input("Desired Savings Percentage", min_value=0.0, max_value=100.0)
+        # Basic Information
+        st.markdown("### Basic Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+        with col2:
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
         
-        if st.form_submit_button("Check Financial Score"):
+        # Essential Expenses
+        st.markdown("### Essential Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
+        with col2:
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
+        
+        # Lifestyle Expenses
+        st.markdown("### Lifestyle Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
+        with col2:
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
+        
+        # Other Expenses
+        st.markdown("### Other Expenses (₹)")
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
+        
+        if st.form_submit_button("Calculate Financial Score"):
             payload = {
                 "Income": income,
                 "Age": age,
@@ -846,78 +1172,80 @@ def financial_score():
                 "Healthcare": healthcare,
                 "Education": education,
                 "Miscellaneous": miscellaneous,
-                "Desired_Savings_Percentage": desired_savings_percentage
+                "Desired_Savings_Percentage": savings
             }
 
             response = send_request("score", payload)
 
-            if response is not None:
-                st.success("✅ Financial score retrieved successfully!")
-                st.write("### 🧮 Your Financial Health Report")
-
-                if isinstance(response, dict):
-                    for key, value in response.items():
-                        st.markdown(f"- **{key.replace('_', ' ')}**: {value}")
-                else:
-                    st.warning("⚠️ Unexpected response format.")
+            if response:
+                st.success("✅ Score calculated successfully!")
+                score = response.get("Financial_Health_Score", 0)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Your Financial Health Score", f"{score:.1f}/100")
+                    if score >= 75:
+                        st.success("Excellent financial health!")
+                    elif score >= 50:
+                        st.warning("Moderate financial health - room for improvement")
+                    else:
+                        st.error("Poor financial health - needs attention")
+                
+                with col2:
+                    st.write("### Improvement Tips")
+                    st.markdown("""
+                    - Increase your savings rate
+                    - Reduce high-interest debt
+                    - Review discretionary spending
+                    - Consider additional income streams
+                    """)
             else:
-                st.error("❌ Failed to fetch financial score.")
+                st.error("❌ Failed to calculate score.")
 
 def personalized_recommendations():
-    """Personalized recommendations form with all required fields"""
+    """Personalized recommendations form"""
     st.subheader("💡 Personalized Recommendations")
     
     with st.form("personalized_recommendation_form"):
-        # Section 1: Basic Information
+        # Basic Information
         st.markdown("### Basic Information")
         col1, col2 = st.columns(2)
         with col1:
-            income = st.number_input("Monthly Income (₹)", min_value=0, value=0)
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
             age = st.number_input("Age", min_value=18, max_value=100, value=30)
-            dependents = st.number_input("Dependents", min_value=0, value=0)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
         with col2:
-            occupation = st.selectbox("Occupation", [
-                "Salaried", "Business", "Professional", 
-                "Retired", "Student", "Other"
-            ])
-            city_tier = st.selectbox("City Tier", [1, 2, 3], index=0)
-            desired_savings = st.number_input(
-                "Desired Savings %", 
-                min_value=0.0, max_value=100.0, value=20.0
-            )
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
         
-        # Section 2: Essential Expenses
+        # Essential Expenses
         st.markdown("### Essential Expenses (₹)")
         col1, col2 = st.columns(2)
         with col1:
-            rent = st.number_input("Rent/Mortgage", min_value=0.0, value=0.0)
-            groceries = st.number_input("Groceries", min_value=0.0, value=0.0)
-            transport = st.number_input("Transport", min_value=0.0, value=0.0)
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
         with col2:
-            loan_repayment = st.number_input("Loan Repayment", min_value=0.0, value=0.0)
-            insurance = st.number_input("Insurance", min_value=0.0, value=0.0)
-            utilities = st.number_input("Utilities", min_value=0.0, value=0.0)
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
         
-        # Section 3: Lifestyle Expenses
+        # Lifestyle Expenses
         st.markdown("### Lifestyle Expenses (₹)")
         col1, col2 = st.columns(2)
         with col1:
-            eating_out = st.number_input("Dining Out", min_value=0.0, value=0.0)
-            entertainment = st.number_input("Entertainment", min_value=0.0, value=0.0)
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
         with col2:
-            healthcare = st.number_input("Healthcare", min_value=0.0, value=0.0)
-            education = st.number_input("Education", min_value=0.0, value=0.0)
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
         
-        # Section 4: Other Expenses
+        # Other Expenses
         st.markdown("### Other Expenses (₹)")
-        miscellaneous = st.number_input("Miscellaneous", min_value=0.0, value=0.0)
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
         
         if st.form_submit_button("Get Recommendations"):
-            # Calculate total expenses
-            total_expenses = (rent + groceries + transport + loan_repayment +
-                            insurance + utilities + eating_out + entertainment +
-                            healthcare + education + miscellaneous)
-            
             payload = {
                 "Income": income,
                 "Age": age,
@@ -935,58 +1263,73 @@ def personalized_recommendations():
                 "Healthcare": healthcare,
                 "Education": education,
                 "Miscellaneous": miscellaneous,
-                "Desired_Savings_Percentage": desired_savings
+                "Desired_Savings_Percentage": savings
             }
 
             response = send_request("recommendation", payload)
 
             if response:
                 st.success("✅ Recommendations generated successfully!")
-                recommendations = response.get("Recommendations", [])
+                recommendations = response.get("Personalized_Recommendations", {})
                 
                 if recommendations:
-                    st.write("### 💡 Your Personalized Recommendations")
-                    for i, rec in enumerate(recommendations, 1):
-                        st.markdown(f"{i}. {rec}")
-                    
-                    # Financial Summary
-                    st.markdown("### 📊 Financial Summary")
-                    cols = st.columns(3)
-                    cols[0].metric("Total Income", f"₹{income:,.2f}")
-                    cols[1].metric("Total Expenses", f"₹{total_expenses:,.2f}")
-                    cols[2].metric("Potential Savings", f"₹{income - total_expenses:,.2f}")
-                    
-                    st.write(f"**Current Savings Rate:** {(income - total_expenses)/income*100:.1f}%")
-                    st.write(f"**Your Savings Goal:** {desired_savings}%")
+                    st.write("### 💰 Your Personalized Budget Recommendations")
+                    cols = st.columns(2)
+                    with cols[0]:
+                        st.metric("Recommended Rent", f"₹{recommendations.get('Rent', 0):,.2f}")
+                        st.metric("Recommended Groceries", f"₹{recommendations.get('Groceries', 0):,.2f}")
+                    with cols[1]:
+                        st.metric("Recommended Savings", f"₹{recommendations.get('Savings', 0):,.2f}")
+                        st.metric("Discretionary Spending", f"₹{recommendations.get('Discretionary', 0):,.2f}")
                 else:
                     st.info("No specific recommendations available based on your input.")
             else:
-                st.error("❌ Failed to get recommendations.")     
-
+                st.error("❌ Failed to get recommendations.")
            
 def savings_efficiency():
     """Savings efficiency analysis form"""
     st.subheader("💰 Savings Efficiency")
+    
     with st.form("savings_efficiency_form"):
-        income = st.number_input("Income", min_value=0)
-        age = st.number_input("Age", min_value=0)
-        dependents = st.number_input("Dependents", min_value=0)
-        occupation = st.text_input("Occupation")
-        city_tier = st.selectbox("City Tier", [1, 2, 3])
-        rent = st.number_input("Rent", min_value=0.0)
-        loan_repayment = st.number_input("Loan Repayment", min_value=0.0)
-        insurance = st.number_input("Insurance", min_value=0.0)
-        groceries = st.number_input("Groceries", min_value=0.0)
-        transport = st.number_input("Transport", min_value=0.0)
-        eating_out = st.number_input("Eating Out", min_value=0.0)
-        entertainment = st.number_input("Entertainment", min_value=0.0)
-        utilities = st.number_input("Utilities", min_value=0.0)
-        healthcare = st.number_input("Healthcare", min_value=0.0)
-        education = st.number_input("Education", min_value=0.0)
-        miscellaneous = st.number_input("Miscellaneous", min_value=0.0)
-        desired_savings_percentage = st.number_input("Desired Savings Percentage", min_value=0.0, max_value=100.0)
-
-        if st.form_submit_button("Check Savings Efficiency"):
+        # Basic Information
+        st.markdown("### Basic Information")
+        col1, col2 = st.columns(2)
+        with col1:
+            income = st.number_input("Monthly Income (₹)", min_value=0, value=50000)
+            age = st.number_input("Age", min_value=18, max_value=100, value=30)
+            dependents = st.number_input("Number of Dependents", min_value=0, value=0)
+        with col2:
+            occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
+            city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
+            savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
+        
+        # Essential Expenses
+        st.markdown("### Essential Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            rent = st.number_input("Rent/Mortgage", min_value=0, value=15000)
+            groceries = st.number_input("Groceries", min_value=0, value=8000)
+            transport = st.number_input("Transport", min_value=0, value=3000)
+        with col2:
+            loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
+            insurance = st.number_input("Insurance", min_value=0, value=2000)
+            utilities = st.number_input("Utilities", min_value=0, value=2000)
+        
+        # Lifestyle Expenses
+        st.markdown("### Lifestyle Expenses (₹)")
+        col1, col2 = st.columns(2)
+        with col1:
+            eating_out = st.number_input("Dining Out", min_value=0, value=4000)
+            entertainment = st.number_input("Entertainment", min_value=0, value=3000)
+        with col2:
+            healthcare = st.number_input("Healthcare", min_value=0, value=2000)
+            education = st.number_input("Education", min_value=0, value=3000)
+        
+        # Other Expenses
+        st.markdown("### Other Expenses (₹)")
+        miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
+        
+        if st.form_submit_button("Analyze Savings Efficiency"):
             payload = {
                 "Income": income,
                 "Age": age,
@@ -1004,24 +1347,35 @@ def savings_efficiency():
                 "Healthcare": healthcare,
                 "Education": education,
                 "Miscellaneous": miscellaneous,
-                "Desired_Savings_Percentage": desired_savings_percentage
+                "Desired_Savings_Percentage": savings
             }
 
             response = send_request("savings", payload)
 
-            if response is not None:
-                st.success("✅ Savings efficiency analysis successful!")
-                st.write("### 📋 Savings Insight")
+            if response:
+                st.success("✅ Savings analysis completed!")
+                result = response.get("Savings_Target_Result", None)
                 
-                if isinstance(response, dict):
-                    for key, value in response.items():
-                        st.markdown(f"- **{key.replace('_', ' ')}**: {value}")
+                if result is not None:
+                    if result == 1:
+                        st.success("🎉 You're meeting your savings targets!")
+                    else:
+                        st.warning("⚠️ You're not meeting your savings targets")
+                    
+                    st.markdown("### Tips to Improve Savings")
+                    st.markdown("""
+                    - Review discretionary spending (eating out, entertainment)
+                    - Consider refinancing loans for better rates
+                    - Automate your savings transfers
+                    - Look for cheaper insurance options
+                    """)
                 else:
-                    st.warning("⚠️ Unexpected response format.")
+                    st.error("Could not determine savings efficiency")
             else:
-                st.error("❌ Failed to get savings efficiency analysis.")
+                st.error("❌ Failed to analyze savings efficiency.")
 
 ### ✅ Dashboard Views
+
 def dashboard_view():
     """Main dashboard view"""
     st.subheader("📊 Dashboard Overview")
@@ -1192,11 +1546,17 @@ def transactions_view():
         recurring_transaction()
     elif st.session_state.active_subsection == "list_transactions":
         list_transactions()
+    elif st.session_state.active_subsection == "update_transaction":
+        update_transaction()
+    elif st.session_state.active_subsection == "delete_transaction":
+        delete_transaction()        
     elif st.session_state.active_subsection == "download_reports":
         download_reports()
     else:
         st.markdown("### Transaction Actions")
-        col1, col2 = st.columns(2)
+        # Create 3 columns for better layout
+        col1, col2, col3 = st.columns(3)
+        
         with col1:
             if st.button("➕ Log Transaction", key="txn_log_btn"):
                 st.session_state.active_subsection = "log_transaction"
@@ -1204,15 +1564,22 @@ def transactions_view():
             if st.button("📜 List Transactions", key="txn_list_btn"):
                 st.session_state.active_subsection = "list_transactions"
                 st.rerun()
+        
         with col2:
             if st.button("🔄 Recurring Transaction", key="txn_recurring_btn"):
                 st.session_state.active_subsection = "recurring_transaction"
                 st.rerun()
+            if st.button("✏️ Update Transaction", key="txn_update_btn"):
+                st.session_state.active_subsection = "update_transaction"
+                st.rerun()
+        
+        with col3:
+            if st.button("🗑️ Delete Transaction", key="txn_delete_btn"):
+                st.session_state.active_subsection = "delete_transaction"
+                st.rerun()
             if st.button("📥 Download Reports", key="txn_download_btn"):
                 st.session_state.active_subsection = "download_reports"
                 st.rerun()
-    
-   
 
 def ai_view():
     """AI tools view with unique keys"""
