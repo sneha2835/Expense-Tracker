@@ -152,7 +152,7 @@ def logout():
 def sidebar_navigation():
     """Render the sidebar navigation with unique keys"""
     with st.sidebar:
-        #st.image(r"C:\Users\sneha\OneDrive\Pictures\Screenshots\Screenshot 2025-04-15 034634.png", width=150)
+        st.image(r"C:\Users\sneha\OneDrive\Pictures\Screenshots\Screenshot 2025-04-15 034634.png", width=150)
         st.write(f"Logged in as: {st.session_state.user_email}")
         
         st.markdown("## Navigation")
@@ -192,6 +192,7 @@ def create_user_profile():
     """Create a new user profile with unique form key"""
     st.subheader("➕ Create Profile")
     
+    # Generate unique form key if it doesn't exist
     if 'create_profile_key' not in st.session_state:
         st.session_state.create_profile_key = f"create_profile_{time.time()}"
     
@@ -199,18 +200,44 @@ def create_user_profile():
         full_name = st.text_input("Full Name", key=f"name_{st.session_state.create_profile_key}")
         email = st.text_input("Email", key=f"email_{st.session_state.create_profile_key}")
         
-
         if st.form_submit_button("Submit Profile"):
+            # Validate inputs
+            if not full_name or not email:
+                st.error("❌ Please fill in all required fields")
+                return
+            
+            # Prepare payload
             payload = {"full_name": full_name, "email": email}
             
-            if response.status_code == 201:
-                st.success("✅ Profile created successfully!")
-                del st.session_state.create_profile_key
-                st.session_state.active_subsection = None
+            try:
+                # Make API request
+                response = requests.post(
+                    f"{BASE_URL}/dashboard/profile/create/",
+                    headers=get_headers(),
+                    json=payload
+                )
+                
+                # Handle response
+                if response.status_code == 201:
+                    st.success("✅ Profile created successfully!")
+                    del st.session_state.create_profile_key
+                    st.session_state.active_subsection = None
+                    st.rerun()
+                else:
+                    try:
+                        error_details = response.json()
+                        st.error(f"❌ Failed to create profile: {error_details.get('detail', response.text)}")
+                    except ValueError:
+                        st.error(f"❌ Failed to create profile (Status {response.status_code}): {response.text}")
+                    
+                    del st.session_state.create_profile_key
+                    st.rerun()
+                    
+            except requests.exceptions.RequestException as e:
+                st.error(f"❌ Network error: {str(e)}")
                 st.rerun()
-            else:
-                del st.session_state.create_profile_key
-                st.error(f"❌ Failed to create profile: {response.text}")
+            except Exception as e:
+                st.error(f"❌ Unexpected error: {str(e)}")
                 st.rerun()
 
 def view_user_profile():
