@@ -172,18 +172,6 @@ response = requests.get(
     params={"user_id": 123}
 )
 
-### 📈 Results & Performance
-
-Metric	Value
-
-Average prediction accuracy	91.2%
-
-Anomaly detection F1-score	0.93
-
-API response time	< 300ms
-
-Concurrent users supported	500+
-
 
 ### 🌱 Future Enhancements
 
