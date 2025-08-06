@@ -101,7 +101,7 @@ pip install -r requirements.txt
 
 ### 5. **Configure environment variables**
 
-Create .env file:
+Go to settings.py file and change the following accordingly
 
 DB_NAME=budget_db
 
