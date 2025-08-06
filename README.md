@@ -70,7 +70,7 @@ GRANT ALL PRIVILEGES ON budget_db.* TO 'budget_user'@'localhost';
 
 pip install -r requirements.txt
 
-### **Configure environment variables**
+### 5. **Configure environment variables**
 
 Create .env file:
 
@@ -86,12 +86,14 @@ DB_PORT=3306
 
 SECRET_KEY=your-django-secret-key
 
-### **Run database migrations**
+### 6. **Run database migrations**
+
+python manage.py makemigrations
 
 python manage.py migrate
 
 
-### **Start the application**
+### 7. **Start the application**
 
 # Backend (Django)
 python manage.py runserver
