@@ -134,6 +134,34 @@ cd frontend
 
 streamlit run app.py
 
+### 1. Homepage
+
+<img width="1970" height="1144" alt="image" src="https://github.com/user-attachments/assets/6b71cd8c-ce4a-411d-9a8f-9d95d91f5796" />
+
+### 2. Expense Prediction
+
+<img width="1415" height="1043" alt="image" src="https://github.com/user-attachments/assets/fcee46be-206e-4a06-8fe6-5bd9a04f9e6a" />
+
+### 3. Anomaly Detection
+
+<img width="1496" height="1043" alt="image" src="https://github.com/user-attachments/assets/e560967b-689a-41c1-a14b-d04209712e15" />
+
+### 4. Financial Health Score
+
+<img width="1462" height="500" alt="image" src="https://github.com/user-attachments/assets/1235b425-8328-4dcf-ad67-8a07c5502b8a" />
+
+### 5. Savings Efficiency 
+
+<img width="1462" height="500" alt="image" src="https://github.com/user-attachments/assets/365c0285-56ea-4af4-9d57-dca51ab6798a" />
+
+### 6. Personalized Recommendations
+
+<img width="1462" height="500" alt="image" src="https://github.com/user-attachments/assets/7e2edc0c-65df-457d-b290-31e4186b6f67" />
+
+### 7. Overspending Alerts
+
+<img width="1442" height="596" alt="image" src="https://github.com/user-attachments/assets/b7e2ca26-fa5e-4a81-af26-09b8363c4e83" />
+
 ## 📊 Model Architecture
 ### Data Flow
 User interacts with Streamlit frontend
