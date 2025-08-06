@@ -49,7 +49,7 @@
 ### Core Components
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | Streamlit, Plotly, Tailwind CSS |
+| **Frontend** | Streamlit |
 | **Backend** | Django REST Framework |
 | **Database** | MySQL 8.0 |
 | **Machine Learning** | Scikit-learn, XGBoost, Pandas |
