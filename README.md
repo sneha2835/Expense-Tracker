@@ -46,7 +46,7 @@
 
 ### 1. **Clone the repository**
 
-git clone https://github.com/Srinidhi945/AI-Powered-Expense-Tracker.git
+git clone https://github.com/sneha2835/Expense-Tracker.git
 cd AI-Powered-Expense-Tracker
 
 ### 2. **Set up virtual environment**
