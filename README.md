@@ -5,7 +5,6 @@
 
 **Your intelligent financial co-pilot** - Leveraging six specialized ML models to provide deep, actionable insights into your financial health.
 
-![Dashboard Screenshot](https://via.placeholder.com/800x400?text=Dashboard+Preview)
 
 ## 🌟 Key Features
 
