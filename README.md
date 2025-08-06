@@ -95,10 +95,10 @@ python manage.py migrate
 
 ### 7. **Start the application**
 
-# Backend (Django)
+> Backend (Django)
 python manage.py runserver
 
-# Frontend (Streamlit) - in new terminal
+> Frontend (Streamlit) - in new terminal
 cd frontend
 
 streamlit run app.py
