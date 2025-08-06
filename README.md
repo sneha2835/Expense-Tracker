@@ -53,13 +53,17 @@ cd AI-Powered-Expense-Tracker
 ### 2. **Set up virtual environment**
 
 python -m venv venv
+
 source venv/bin/activate  # Linux/Mac
+
 venv\Scripts\activate     # Windows
 
 ### 3. **Configure MySQL Database**
 
 CREATE DATABASE budget_db;
+
 CREATE USER 'budget_user'@'localhost' IDENTIFIED BY 'secure_password';
+
 GRANT ALL PRIVILEGES ON budget_db.* TO 'budget_user'@'localhost';
 
 ### **4.Install dependencies**
@@ -71,10 +75,15 @@ pip install -r requirements.txt
 Create .env file:
 
 DB_NAME=budget_db
+
 DB_USER=budget_user
+
 DB_PASSWORD=secure_password
+
 DB_HOST=localhost
+
 DB_PORT=3306
+
 SECRET_KEY=your-django-secret-key
 
 ### **Run database migrations**
@@ -89,6 +98,7 @@ python manage.py runserver
 
 # Frontend (Streamlit) - in new terminal
 cd frontend
+
 streamlit run app.py
 
 ## 📊 Model Architecture
@@ -132,9 +142,13 @@ response = requests.get(
 ### 📈 Results & Performance
 
 Metric	Value
+
 Average prediction accuracy	91.2%
+
 Anomaly detection F1-score	0.93
+
 API response time	< 300ms
+
 Concurrent users supported	500+
 
 
