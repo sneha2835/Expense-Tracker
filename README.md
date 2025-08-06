@@ -6,15 +6,43 @@
 **Your intelligent financial co-pilot** - Leveraging six specialized ML models to provide deep, actionable insights into your financial health.
 
 
-## 🌟 Key Features
+## 🔍 Core AI Models
 
-- 🧠 **AI-Powered Insights**: 6 specialized ML models for comprehensive financial analysis
-- 📊 **Expense Prediction**: Forecast disposable income with 92% accuracy
-- 🚨 **Overspending Alerts**: Real-time notifications using XGBoost classifier
-- 🔍 **Anomaly Detection**: Identify unusual spending patterns with Isolation Forest
-- 💯 **Financial Health Score**: Comprehensive assessment with XGBoost Regressor
-- 💡 **Personalized Recommendations**: Tailored budgeting advice
-- 📈 **Interactive Dashboard**: Clean, intuitive visualizations
+### 1. Expense Predictor
+- **Model**: Random Forest Regressor  
+- **Function**: Forecasts category-wise spending patterns to enable proactive budget planning  
+- **Inputs**: Historical spending, income patterns, lifestyle factors  
+- **Output**: Predicted monthly expenses by category  
+
+### 2. Overspending Alert System  
+- **Model**: XGBoost Classifier  
+- **Function**: Monitors real-time spending against budget thresholds  
+- **Inputs**: Current expenditures vs. budget allocations  
+- **Output**: Instant notifications when approaching budget limits  
+
+### 3. Anomaly Detector  
+- **Model**: Isolation Forest  
+- **Function**: Identifies unusual financial transactions  
+- **Inputs**: Transaction patterns, spending frequency, amount deviations  
+- **Output**: Flagged suspicious transactions  
+
+### 4. Savings Efficiency Model  
+- **Model**: Decision Tree  
+- **Function**: Evaluates savings progress against goals  
+- **Inputs**: Income vs. savings ratio, target benchmarks  
+- **Output**: Savings efficiency percentage and improvement tips  
+
+### 5. Financial Health Score  
+- **Model**: Random Forest Regressor  
+- **Function**: Computes comprehensive financial wellness score  
+- **Inputs**: 12+ financial metrics including debt-to-income ratio  
+- **Output**: 0-100 score with category breakdown  
+
+### 6. Personalized Recommender  
+- **Model**: Random Forest Regressor  
+- **Function**: Generates customized spending/saving strategies  
+- **Inputs**: User behavior patterns and financial goals  
+- **Output**: Actionable optimization recommendations  
 
 ## 🛠 Tech Stack
 
@@ -27,13 +55,14 @@
 | **Machine Learning** | Scikit-learn, XGBoost, Pandas |
 
 ### ML Models
-| Model | Algorithm | Purpose | Accuracy |
-|-------|-----------|---------|----------|
-| Expense Predictor | Random Forest Regressor | Forecast disposable income | 92% |
-| Overspending Alert | XGBoost Classifier | Detect excessive spending | 89% |
-| Anomaly Detector | Isolation Forest | Identify unusual transactions | 94% |
-| Financial Health Score | XGBoost Regressor | Assess financial wellness | 88% |
-
+| Model | Algorithm | Purpose |
+|-------|-----------|---------|
+| Expense Predictor | Random Forest Regressor | Forecast category-wise spending for budget planning |
+| Overspending Alert | XGBoost Classifier | Monitor spending thresholds and trigger alerts |
+| Anomaly Detector | Isolation Forest | Detect abnormal or suspicious expense behavior |
+| Savings Efficiency Model | Decision Tree | Assess savings progress and calculate efficiency ratios |
+| Financial Health Score | Random Forest Regressor | Generate comprehensive score using income/spending metrics |
+| Personalized Recommender | Random Forest Regressor | Suggest user-specific spending/saving strategies |
 
 ## 🚀 Installation
 
