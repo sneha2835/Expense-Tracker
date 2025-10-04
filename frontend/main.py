@@ -5,6 +5,9 @@ from datetime import date, datetime
 import uuid
 import time
 import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
+
 
 # Initialize session state for form keys
 if 'form_keys' not in st.session_state:
@@ -152,7 +155,7 @@ def logout():
 def sidebar_navigation():
     """Render the sidebar navigation with unique keys"""
     with st.sidebar:
-        st.image(r"C:\Users\sneha\OneDrive\Pictures\Screenshots\Screenshot 2025-04-15 034634.png", width=150)
+        st.image("D:\Fin\Expense-Tracker\static\images\expense-tracker.webp", width=150)
         st.write(f"Logged in as: {st.session_state.user_email}")
         
         st.markdown("## Navigation")
@@ -176,7 +179,7 @@ def sidebar_navigation():
             st.session_state.active_subsection = None
             st.rerun()
         
-        if st.button("🤖 AI Tools", key="sidebar_ai_btn"):
+        if st.button("🤖 ML Tools", key="sidebar_ai_btn"):
             st.session_state.active_section = "ai"
             st.session_state.active_subsection = None
             st.rerun()
@@ -905,6 +908,7 @@ def send_request(endpoint, payload):
         st.error(f"Request failed: {e}")
         return None
 
+
 def expense_prediction():
     """Expense prediction form"""
     st.subheader("📊 Expense Prediction")
@@ -972,8 +976,23 @@ def expense_prediction():
                     st.write("### Category Breakdown")
                     for category, amount in prediction.get("Category_Expenses", {}).items():
                         st.markdown(f"- **{category}:** ₹{amount:,.2f}")
+
+                # Visualization code starts here
+                category_expenses = prediction.get("Category_Expenses", {})
+                if category_expenses:
+                    labels = list(category_expenses.keys())
+                    sizes = list(category_expenses.values())
+
+                    fig, ax = plt.subplots(figsize=(3, 3))
+                    fig.patch.set_facecolor('black')
+                    ax.set_facecolor('black')
+                    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=150,textprops={'fontsize': 6,'color': 'white'})
+                    ax.set_title("Expense Breakdown by Category",color='white')
+                    st.pyplot(fig)
+
             else:
                 st.error("❌ Failed to get prediction.")
+
 
 def overspending_alert():
     """Overspending alert form"""
@@ -1055,6 +1074,41 @@ def overspending_alert():
                     """)
                 else:
                     st.success("🎉 Your spending is within healthy limits!")
+                
+                # Prepare data for horizontal bar chart showing % spent per category
+                categories = ['Rent', 'Groceries', 'Transport', 'Loan Repayment', 'Insurance', 
+                              'Utilities', 'Eating Out', 'Entertainment', 'Healthcare', 'Education', 'Miscellaneous']
+                values = [rent, groceries, transport, loan_repayment, insurance, utilities, eating_out, 
+                          entertainment, healthcare, education, miscellaneous]
+                
+                if income > 0:
+                    percent_spent = [v / income * 100 for v in values]
+                else:
+                    percent_spent = [0] * len(values)
+
+                df = pd.DataFrame({
+                    'Category': categories,
+                    'Percent Spent': percent_spent
+                }).sort_values('Percent Spent')
+
+                # Plot horizontal bar chart with black background
+                fig, ax = plt.subplots(figsize=(6, 3))
+                fig.patch.set_facecolor('black')
+                ax.set_facecolor('black')
+                bars = ax.barh(df['Category'], df['Percent Spent'], color='cyan')
+                ax.set_xlabel('Percentage of Income (%)', color='white')
+                ax.set_title('Spending by Category as % of Income', color='white')
+                ax.tick_params(axis='x', colors='white')
+                ax.tick_params(axis='y', colors='white')
+                for spine in ax.spines.values():
+                    spine.set_edgecolor('white')
+                # Label bars with value
+                for bar in bars:
+                    width = bar.get_width()
+                    ax.text(width + 0.5, bar.get_y() + bar.get_height()/2, f"{width:.1f}%", va='center', color='white')
+
+                st.pyplot(fig)
+
             else:
                 st.error("❌ Failed to analyze spending.")
 
@@ -1110,24 +1164,19 @@ def anomaly_detection():
             actual_savings = income - total_expenses
             savings_percentage = (actual_savings / income) * 100 if income > 0 else 0
 
-            # ===== STRICTER ANOMALY RULES =====
             anomalies = []
             
-            # Rule 1: Negative savings (critical)
             if actual_savings < 0:
                 anomalies.append(("Deficit Spending", f"Expenses exceed income by ₹{abs(actual_savings):,}"))
             
-            # Rule 2: Essential expenses > 60% income
             essential_expenses = rent + groceries + transport + loan_repayment + insurance + utilities
             if essential_expenses > income * 0.6:
                 anomalies.append(("High Essentials", f"₹{essential_expenses:,} ({essential_expenses/income*100:.1f}% of income)"))
             
-            # Rule 3: Lifestyle > 30% income
             lifestyle_expenses = eating_out + entertainment + healthcare + education
             if lifestyle_expenses > income * 0.3:
                 anomalies.append(("High Lifestyle", f"₹{lifestyle_expenses:,} ({lifestyle_expenses/income*100:.1f}% of income)"))
             
-            # Rule 4: Any single category > 25% income
             category_checks = {
                 "Rent": rent,
                 "Groceries": groceries,
@@ -1135,29 +1184,49 @@ def anomaly_detection():
                 "Entertainment": entertainment,
                 "Loan Repayment": loan_repayment
             }
+            
             for name, amount in category_checks.items():
                 if amount > income * 0.25:
                     anomalies.append((f"Extreme {name}", f"₹{amount:,} ({amount/income*100:.1f}% of income)"))
 
-            # ===== DISPLAY RESULTS =====
+            # Display results
             st.success("✅ Analysis completed!")
             
             if anomalies:
                 st.error(f"⚠️ {len(anomalies)} Financial Anomalies Detected!")
                 
-                # Detailed breakdown
                 with st.expander("🔍 Anomaly Details", expanded=True):
                     for anomaly in anomalies:
                         st.warning(f"• {anomaly[0]}: {anomaly[1]}")
-                
-                # Spending summary
+
                 st.markdown("### 🚨 Financial Health Alert")
                 cols = st.columns(3)
                 cols[0].metric("Total Expenses", f"₹{total_expenses:,}", f"{total_expenses/income*100:.1f}% of income")
                 cols[1].metric("Actual Savings", f"₹{actual_savings:,}", delta_color="inverse")
                 cols[2].metric("Savings vs Goal", f"{savings_percentage:.1f}%", f"{savings_percentage-savings:.1f}%")
-                
-                # Action plan
+
+                # Prepare data for anomaly bar chart
+                anomaly_types = [a[0] for a in anomalies]
+                anomaly_counts = pd.Series(anomaly_types).value_counts().sort_values()
+
+                fig, ax = plt.subplots(figsize=(6, 3))
+                fig.patch.set_facecolor('black')
+                ax.set_facecolor('black')
+
+                bars = ax.barh(anomaly_counts.index, anomaly_counts.values, color='red', height=0.6)
+                ax.set_xlabel('Count', color='white')
+                ax.set_title('Detected Financial Anomalies', color='white')
+                ax.tick_params(axis='x', colors='white')
+                ax.tick_params(axis='y', colors='white')
+                for spine in ax.spines.values():
+                    spine.set_edgecolor('white')
+
+                for bar in bars:
+                    w = bar.get_width()
+                    ax.text(w + 0.1, bar.get_y() + bar.get_height() / 2, str(w), va='center', color='white', fontsize=8)
+
+                st.pyplot(fig)
+
                 st.markdown("### 🛠 Recommended Actions")
                 st.write("""
                 - Immediately review flagged categories
@@ -1177,6 +1246,25 @@ def anomaly_detection():
                 cols[2].metric("Savings Goal", 
                               f"Met ({savings_percentage:.1f}%)" if savings_percentage >= savings else f"Short by {savings-savings_percentage:.1f}%",
                               delta=f"{savings_percentage-savings:.1f}%")
+                
+def financial_score_chart(score):
+    categories = ['Financial Health Score']
+    values = [score]
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    bars = ax.bar(categories, values, color='blue')
+
+    ax.set_ylim(0, 100)  # Score range fixed 0-100
+    ax.set_ylabel('Score')
+    ax.set_title('Financial Health Score')
+
+    # Label the bar with the numeric score
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, height - 10, f'{height:.1f}', ha='center', color='white', fontsize=14, fontweight='bold')
+
+    st.pyplot(fig)
+     
 def financial_score():
     """Financial score form"""
     st.subheader("📊 Financial Score")
@@ -1265,13 +1353,13 @@ def financial_score():
                     - Review discretionary spending
                     - Consider additional income streams
                     """)
+                    financial_score_chart(score)
             else:
                 st.error("❌ Failed to calculate score.")
 
 def personalized_recommendations():
-    """Personalized recommendations form"""
     st.subheader("💡 Personalized Recommendations")
-    
+
     with st.form("personalized_recommendation_form"):
         # Basic Information
         st.markdown("### Basic Information")
@@ -1284,7 +1372,7 @@ def personalized_recommendations():
             occupation = st.selectbox("Occupation", ["Salaried", "Business", "Professional", "Retired", "Student", "Other"])
             city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
             savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
-        
+
         # Essential Expenses
         st.markdown("### Essential Expenses (₹)")
         col1, col2 = st.columns(2)
@@ -1296,7 +1384,7 @@ def personalized_recommendations():
             loan_repayment = st.number_input("Loan Repayment", min_value=0, value=5000)
             insurance = st.number_input("Insurance", min_value=0, value=2000)
             utilities = st.number_input("Utilities", min_value=0, value=2000)
-        
+
         # Lifestyle Expenses
         st.markdown("### Lifestyle Expenses (₹)")
         col1, col2 = st.columns(2)
@@ -1306,11 +1394,11 @@ def personalized_recommendations():
         with col2:
             healthcare = st.number_input("Healthcare", min_value=0, value=2000)
             education = st.number_input("Education", min_value=0, value=3000)
-        
+
         # Other Expenses
         st.markdown("### Other Expenses (₹)")
         miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
-        
+
         if st.form_submit_button("Get Recommendations"):
             payload = {
                 "Income": income,
@@ -1337,7 +1425,7 @@ def personalized_recommendations():
             if response:
                 st.success("✅ Recommendations generated successfully!")
                 recommendations = response.get("Personalized_Recommendations", {})
-                
+
                 if recommendations:
                     st.write("### 💰 Your Personalized Budget Recommendations")
                     cols = st.columns(2)
@@ -1347,11 +1435,32 @@ def personalized_recommendations():
                     with cols[1]:
                         st.metric("Recommended Savings", f"₹{recommendations.get('Savings', 0):,.2f}")
                         st.metric("Discretionary Spending", f"₹{recommendations.get('Discretionary', 0):,.2f}")
+
+                    # Create horizontal bar chart
+                    categories = ['Rent', 'Groceries', 'Savings', 'Discretionary']
+                    values = [recommendations.get('Rent', 0), recommendations.get('Groceries', 0),
+                              recommendations.get('Savings', 0), recommendations.get('Discretionary', 0)]
+
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    y_pos = range(len(categories))
+                    ax.barh(y_pos, values, color='teal')
+                    ax.set_yticks(y_pos)
+                    ax.set_yticklabels(categories, fontsize=12)
+                    ax.invert_yaxis()  # Highest value on top
+                    ax.set_xlabel('Amount (₹)', fontsize=12)
+                    ax.set_title('Personalized Budget Recommendations', fontsize=14)
+
+                    # Label bars with value
+                    max_val = max(values) if values else 0
+                    for i, v in enumerate(values):
+                        ax.text(v + max_val*0.01, i, f"₹{v:,.2f}", va='center', fontsize=10)
+
+                    st.pyplot(fig)
                 else:
                     st.info("No specific recommendations available based on your input.")
             else:
                 st.error("❌ Failed to get recommendations.")
-           
+
 def savings_efficiency():
     """Savings efficiency analysis form"""
     st.subheader("💰 Savings Efficiency")
@@ -1369,7 +1478,7 @@ def savings_efficiency():
             city_tier = st.selectbox("City Tier", [1, 2, 3], index=1)
             savings = st.number_input("Desired Savings (%)", min_value=0, max_value=100, value=20)
         
-        # Essential Expenses
+        # Expenses Input (essential, lifestyle, other) - same as before
         st.markdown("### Essential Expenses (₹)")
         col1, col2 = st.columns(2)
         with col1:
@@ -1381,7 +1490,6 @@ def savings_efficiency():
             insurance = st.number_input("Insurance", min_value=0, value=2000)
             utilities = st.number_input("Utilities", min_value=0, value=2000)
         
-        # Lifestyle Expenses
         st.markdown("### Lifestyle Expenses (₹)")
         col1, col2 = st.columns(2)
         with col1:
@@ -1391,54 +1499,54 @@ def savings_efficiency():
             healthcare = st.number_input("Healthcare", min_value=0, value=2000)
             education = st.number_input("Education", min_value=0, value=3000)
         
-        # Other Expenses
         st.markdown("### Other Expenses (₹)")
         miscellaneous = st.number_input("Miscellaneous", min_value=0, value=2000)
         
         if st.form_submit_button("Analyze Savings Efficiency"):
-            payload = {
-                "Income": income,
-                "Age": age,
-                "Dependents": dependents,
-                "Occupation": occupation,
-                "City_Tier": city_tier,
-                "Rent": rent,
-                "Loan_Repayment": loan_repayment,
-                "Insurance": insurance,
-                "Groceries": groceries,
-                "Transport": transport,
-                "Eating_Out": eating_out,
-                "Entertainment": entertainment,
-                "Utilities": utilities,
-                "Healthcare": healthcare,
-                "Education": education,
-                "Miscellaneous": miscellaneous,
-                "Desired_Savings_Percentage": savings
-            }
-
-            response = send_request("savings", payload)
-
-            if response:
-                st.success("✅ Savings analysis completed!")
-                result = response.get("Savings_Target_Result", None)
-                
-                if result is not None:
-                    if result == 1:
-                        st.success("🎉 You're meeting your savings targets!")
-                    else:
-                        st.warning("⚠️ You're not meeting your savings targets")
-                    
-                    st.markdown("### Tips to Improve Savings")
-                    st.markdown("""
-                    - Review discretionary spending (eating out, entertainment)
-                    - Consider refinancing loans for better rates
-                    - Automate your savings transfers
-                    - Look for cheaper insurance options
-                    """)
-                else:
-                    st.error("Could not determine savings efficiency")
+            total_expenses = (
+                rent + groceries + transport + loan_repayment +
+                insurance + utilities + eating_out + entertainment +
+                healthcare + education + miscellaneous
+            )
+            actual_savings = income - total_expenses
+            actual_savings_percent = (actual_savings / income * 100) if income > 0 else 0
+            
+            # Result check
+            meeting_target = actual_savings_percent >= savings
+            
+            if meeting_target:
+                st.success("🎉 You're meeting your savings targets!")
             else:
-                st.error("❌ Failed to analyze savings efficiency.")
+                st.warning("⚠️ You're not meeting your savings targets")
+            
+            st.markdown("### Tips to Improve Savings")
+            st.markdown("""
+                - Review discretionary spending (eating out, entertainment)  
+                - Consider refinancing loans for better rates  
+                - Automate your savings transfers  
+                - Look for cheaper insurance options  
+            """)
+            
+            # Visualization using horizontal bar chart
+            labels = ['Desired Savings', 'Actual Savings']
+            values = [savings, max(0, actual_savings_percent)]
+            colors = ['lightgreen', 'steelblue']
+            
+            fig, ax = plt.subplots(figsize=(6, 3))
+            y_pos = range(len(labels))
+            ax.barh(y_pos, values, color=colors, alpha=0.7)
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(labels, fontsize=12)
+            ax.set_xlim(0, max(max(values)*1.1, 100))
+            ax.set_xlabel('Savings Percentage (%)', fontsize=12)
+            ax.set_title('Savings Efficiency Comparison', fontsize=14)
+            
+            # Bar labels
+            for i, v in enumerate(values):
+                ax.text(v + 1, i, f"{v:.1f}%", va='center', fontsize=11)
+            
+            st.pyplot(fig)
+
 
 ### ✅ Dashboard Views
 
@@ -1488,7 +1596,7 @@ def dashboard_view():
                     st.session_state.active_subsection = "view_budget"
                     st.rerun()
             with col2:
-                if st.button("📈 AI Analysis"):
+                if st.button("📈 Analysis"):
                     st.session_state.active_section = "ai"
                     st.session_state.active_subsection = "expense_prediction"
                     st.rerun()
@@ -1531,7 +1639,7 @@ def add_navigation_buttons():
             st.session_state.active_subsection = None
             st.rerun()
     with col5:
-        if st.button("🤖 AI Tools", key="nav_ai_btn"):
+        if st.button("🤖 ML Tools", key="nav_ai_btn"):
             st.session_state.active_section = "ai"
             st.session_state.active_subsection = None
             st.rerun()
@@ -1649,7 +1757,7 @@ def transactions_view():
 
 def ai_view():
     """AI tools view with unique keys"""
-    st.subheader("🤖 AI Financial Tools")
+    st.subheader("🤖 ML Financial Tools")
     add_back_button()
     
     if st.session_state.active_subsection == "expense_prediction":
@@ -1666,32 +1774,40 @@ def ai_view():
         savings_efficiency()
     else:
         st.markdown("""
-            ### AI-Powered Financial Insights
-            Select an AI tool to get personalized financial analysis and recommendations.
+            ### ML -Based Financial Insights
+            Select an tool to get personalized financial analysis and recommendations.
         """)
         
-        st.markdown("### Available Tools")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📊 Expense Prediction", key="ai_expense_btn"):
+        st.markdown("### Tools are:")
+        if st.button("📊 Expense Prediction", key="ai_expense_btn"):
                 st.session_state.active_subsection = "expense_prediction"
                 st.rerun()
-            if st.button("🔍 Anomaly Detection", key="ai_anomaly_btn"):
-                st.session_state.active_subsection = "anomaly_detection"
-                st.rerun()
-            if st.button("💰 Savings Efficiency", key="ai_savings_btn"):
-                st.session_state.active_subsection = "savings_efficiency"
-                st.rerun()
-        with col2:
-            if st.button("🚨 Overspending Alert", key="ai_overspending_btn"):
-                st.session_state.active_subsection = "overspending_alert"
-                st.rerun()
-            if st.button("📈 Financial Score", key="ai_score_btn"):
-                st.session_state.active_subsection = "financial_score"
-                st.rerun()
-            if st.button("💡 Personalized Recs", key="ai_recommendations_btn"):
-                st.session_state.active_subsection = "personalized_recommendations"
-                st.rerun()
+        st.caption("Predict your future expenses.")
+
+        if st.button("🔍 Anomaly Detection", key="ai_anomaly_btn"):
+            st.session_state.active_subsection = "anomaly_detection"
+            st.rerun()
+        st.caption("Detect unusual spending patterns.")
+
+        if st.button("💰 Savings Efficiency", key="ai_savings_btn"):
+            st.session_state.active_subsection = "savings_efficiency"
+            st.rerun()
+        st.caption("Check if you're meeting savings goals.")
+
+        if st.button("🚨 Overspending Alert", key="ai_overspending_btn"):
+            st.session_state.active_subsection = "overspending_alert"
+            st.rerun()
+        st.caption("Alert on expenses exceeding limits.")
+
+        if st.button("📈 Financial Score", key="ai_score_btn"):
+            st.session_state.active_subsection = "financial_score"
+            st.rerun()
+        st.caption("Overall financial health score.")
+
+        if st.button("💡 Personalized Recs", key="ai_recommendations_btn"):
+            st.session_state.active_subsection = "personalized_recommendations"
+            st.rerun()
+        st.caption("Custom budget and saving tips.")
     
     
 
